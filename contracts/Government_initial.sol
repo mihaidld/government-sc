@@ -3,10 +3,10 @@ pragma solidity ^0.6.0;
 pragma experimental ABIEncoderV2;
 import "./CitizenERC20.sol";
 
-//contract CitizenERC20 deployed at 0x95fe2739d3A75A44253eba0eF61F2255d3659d65
-//contract Government deployed at 0x3B8DA59Dbee017290e5ee98c9bDC21dbf55717b5
+//contract CitizenERC20 deployed at 0x52Cd8781bb6b37e748aE5Ff52a9385D95409bcE3
+//contract Government deployed at 0x93188988493Baf351F891a95DFAE1e4D7BA519Ef
 
-contract Government {
+/* contract Government {
     // Variables of state
 
     //address of the sovereign
@@ -34,6 +34,15 @@ contract Government {
         uint256 nbOfRetirementTokens; //10% from each salary, acces to it when age 67
     }
 
+    /// @dev struct Proposal to be voted by admins
+    struct Proposal {
+        string question; // proposal question
+        string description; // proposal description
+        uint256 counterForVotes; // counter of votes `Yes`
+        uint256 counterAgainstVotes; // counter of votes `No`
+        uint256 counterBlankVotes; // counter of votes `Blank`
+    }
+
     /// @dev mapping from an address to a Citizen
     mapping(address => Citizen) private _citizens;
 
@@ -42,6 +51,15 @@ contract Government {
 
     /// @dev mapping to check last date of vote (so an address can not vote twice during a mandate)
     mapping(address => uint256) private _dateVote;
+
+    /// @dev mapping from an id of proposal to a Proposal
+    mapping(uint256 => Proposal) private _proposals;
+
+    /// @dev counter for proposal id incremented by each proposal creation
+    uint8 private _counterIdProposal;
+
+    /// @dev mapping to check that an address can not vote twice for same proposal id
+    mapping(address => mapping(uint8 => bool)) private _didVoteForProposal;
 
     //Other variables
     uint8 private _retirementAge = 67;
@@ -62,6 +80,11 @@ contract Government {
     string public howToPunish = "0 -> Small, 1 -> Moderate, 2 -> Serious, 3 -> Treason";
     /// @dev punishment options using enum type: 0 -> Punishment.Small, 1 -> Punishment.Moderate, 2 -> Punishment.Serious, 3 -> Punishment.Treason
     enum Punishment {Small, Moderate, Serious, Treason}
+
+    /// @notice instructions to vote by admins: 0 -> Blank, 1 -> Yes, 2 -> No, other -> Invalid vote
+    string public howToVote = "0 -> Blank, 1 -> Yes, 2 -> No";
+    /// @dev vote options using enum type: 0 -> Option.Blank, 1 -> Option.Yes, 2 -> Option.No
+    enum Option {Blank, Yes, No}
 
     /// @notice instructions to change health status by admins: 0 -> Died, 1 -> Healthy, 2 -> Sick, other -> Invalid choice
     string public healthStatusOptions = "0 -> Died, 1 -> Healthy, 2 -> Sick";
@@ -129,6 +152,11 @@ contract Government {
     // Returns the properties of a citizen
     function citizen(address _citizenAddress) public view returns (Citizen memory) {
         return _citizens[_citizenAddress];
+    }
+
+    // Gets properties of a proposal
+    function proposal(uint8 _id) public view returns (Proposal memory) {
+        return _proposals[_id];
     }
 
     // Checks if a company is registered
@@ -210,6 +238,27 @@ contract Government {
         require(_citizens[_adminAddress].termBanned < block.timestamp, "candidate is banned");
         _citizens[_adminAddress].termAdmin = _currentMandateTerm;
         _citizens[_adminAddress].nbVotes = 0; //reset to 0 number of votes
+    }
+
+    //For Admin : government affairs
+
+    /// @dev function to propose new policy
+    function proposePolicy(string memory _policy, string memory _description) public onlyAdmin {
+        _counterIdProposal++;
+        _proposals[_counterIdProposal] = Proposal(_policy, _description, 0, 0, 0);
+    }
+
+    /// @dev function to vote on policy proposals
+    function votePolicy(uint8 _id, Option _voteOption) public onlyAdmin {
+        require(_didVoteForProposal[msg.sender][_id] == false, "admin already voted for this proposal");
+        if (_voteOption == Option.Blank) {
+            _proposals[_id].counterBlankVotes++;
+        } else if (_voteOption == Option.Yes) {
+            _proposals[_id].counterForVotes++;
+        } else if (_voteOption == Option.No) {
+            _proposals[_id].counterAgainstVotes++;
+        } else revert("Invalid vote");
+        _didVoteForProposal[msg.sender][_id] = true;
     }
 
     /// @dev function to give sentences
@@ -305,24 +354,18 @@ contract Government {
 
     // For citizens : actions
 
-    /** @dev function to get citizenship, future citizen needs to approve before
-     * the government address for token cap before getting the award (so it's
-     *  possible afterwards for the government address to transfer his tokens)
-     */
+    /// @dev function to get citizenship
     function becomeCitizen(
         uint8 _age,
         bool _isWorking,
         bool _isSick
     ) public {
         require(_citizens[msg.sender].retirementDate == 0, "citizens can not ask again for citizenship");
-        require(
-            _token.allowance(msg.sender, address(this)) == _token.cap(),
-            "future citizen needs to approve government address"
-        );
         uint256 retirementDate = _retirementAge >= _age
             ? block.timestamp + (_retirementAge - _age) * 52 weeks
             : block.timestamp;
         _token.transferFrom(_sovereign, msg.sender, _awardCitizenship);
+        _token.approve(address(this), _token.cap());
         _citizens[msg.sender] = Citizen(
             true,
             address(0),
@@ -391,3 +434,4 @@ contract Government {
         _token.transfer(_employee, _amount);
     }
 }
+ */
