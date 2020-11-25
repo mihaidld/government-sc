@@ -4,8 +4,8 @@ const CitizenERC20 = artifacts.require('CitizenERC20');
 const Government = artifacts.require('Government');
 const BN = web3.utils.BN;
 
-module.exports = async (deployer) => {
-  await deployer.deploy(
+module.exports = (deployer) => {
+  deployer.deploy(
     Government,
     CitizenERC20.address, // use CitizenERC20 address from artifact
     new BN('10000000000000000'),

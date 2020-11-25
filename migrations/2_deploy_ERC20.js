@@ -2,8 +2,8 @@
 const CitizenERC20 = artifacts.require('CitizenERC20');
 const BN = web3.utils.BN;
 
-module.exports = async (deployer) => {
-  await deployer.deploy(
+module.exports = (deployer) => {
+  deployer.deploy(
     CitizenERC20,
     'CITIZEN',
     'CTZ',

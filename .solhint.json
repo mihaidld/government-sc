@@ -5,10 +5,11 @@
       "mark-callable-contracts": "off",
       "no-empty-blocks": "off",
       "compiler-version": ["error", "^0.6.0"],
-      "private-vars-leading-underscore": "error",
+      "private-vars-leading-underscore": "off",
       "reason-string": "off",
       "max-states-count": "off",
       "not-rely-on-time": "off",
-      "var-name-mixedcase": "off"
+      "var-name-mixedcase": "off",
+      "state-visibility": "off"
     }
   }

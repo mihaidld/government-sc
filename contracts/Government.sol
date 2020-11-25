@@ -1,11 +1,23 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.6.0;
 pragma experimental ABIEncoderV2;
+
 import "./CitizenERC20.sol";
 
-//contract CitizenERC20 deployed at 0x95fe2739d3A75A44253eba0eF61F2255d3659d65
-//contract Government deployed at 0x3B8DA59Dbee017290e5ee98c9bDC21dbf55717b5
+/// @author Mihai Doldur
+/// @title A government contract for a token economy
 
+//contract Government deployed at 0xb591cbF1008888E0b17CDfAe56Be2eDA4929d15e
+
+/* TODO: 
+import and use SafeMath
+import Ownable / Access Control from OZ to replace onlyOwner?
+Modular : move Policy and Punishment variables & functions to the other contracts
+Test : test every function, require, modifier
+emit Events for state changes (ex. UpdatedCitizen or specific event for each change ChangedHealth, ChosenAdmin etc.)
+add NatSpec comments
+
+*/
 contract Government {
     // Variables of state
 
@@ -17,6 +29,8 @@ contract Government {
 
     // price of 1 full CTZ (10^18 units of token) in wei;
     uint256 private _price;
+
+    uint256 private _currentMandateTerm;
 
     /// @dev struct Citizen
     struct Citizen {
@@ -37,26 +51,22 @@ contract Government {
     /// @dev mapping from an address to a Citizen
     mapping(address => Citizen) private _citizens;
 
-    /// @dev mapping to register a company: companies[address] = true
-    mapping(address => bool) private _companies;
-
     /// @dev mapping to check last date of vote (so an address can not vote twice during a mandate)
     mapping(address => uint256) private _dateVote;
 
-    //Other variables
-    uint8 private _retirementAge = 67;
-    uint8 private _majorityAge = 18;
-    uint256 private _currentMandateTerm;
-    uint256 private _mandateDuration = 8 weeks;
-    uint256 private _electionsDuration = 1 weeks;
-    uint8 private _nbMinimumVotesToGetElected = 5;
-    uint256 private _denomination = 10**18;
-    uint256 private _smallPunishment = 5 * _denomination;
-    uint256 private _moderatePunishment = 50 * _denomination;
-    uint256 private _seriousPunishment = 100 * _denomination;
-    uint256 private _awardCitizenship = 100 * _denomination;
-    uint256 private _stakeAdmin = 100 * _denomination;
-    uint256 private _banishment = 10 * 52 weeks;
+    //constants
+    uint8 constant RETIREMENT_AGE = 67;
+    uint8 constant MAJORITY_AGE = 18;
+    uint256 constant MANDATE_DURATION = 8 weeks;
+    uint256 constant ELECTIONS_DURATION = 1 weeks;
+    uint8 constant NB_MINIMUM_VOTES_TO_GET_ELECTED = 5;
+    uint256 constant DENOMINATION = 10**18;
+    uint256 constant SMALL_PUNISHMENT = 5 * DENOMINATION;
+    uint256 constant MODERATE_PUNISHMENT = 50 * DENOMINATION;
+    uint256 constant SERIOUS_PUNISHMENT = 100 * DENOMINATION;
+    uint256 constant AWARD_CITIZENSHIP = 100 * DENOMINATION;
+    uint256 constant STAKE_ADMIN = 100 * DENOMINATION;
+    uint256 constant BANISHMENT = 10 * 52 weeks;
 
     /// @notice options to be voted by admins: 0 -> Small, 1 -> Moderate, 2 -> Serious, 3 -> Treason, other -> Invalid choice
     string public howToPunish = "0 -> Small, 1 -> Moderate, 2 -> Serious, 3 -> Treason";
@@ -68,10 +78,27 @@ contract Government {
     /// @dev health status options using enum type: 0 -> HealthStatus.Died, 1 -> HealthStatus.Healthy, 2 -> HealthStatus.Sick
     enum HealthStatus {Died, Healthy, Sick}
 
+    // Emitted when a citizen property changes
+    event UpdatedCitizen(
+        address indexed citizen,
+        bool isAlive,
+        address employer,
+        bool isWorking,
+        bool isSick,
+        uint256 nbVotes,
+        uint256 termAdmin,
+        uint256 retirementDate,
+        uint256 termBanned,
+        uint256 nbOfCurrentAccountTokens,
+        uint256 nbOfHealthInsuranceTokens,
+        uint256 nbOfUnemploymentTokens,
+        uint256 nbOfRetirementTokens
+    );
+
     /// @dev priceFull for 1 full CTZ (10^18 tokens) in wei : 10**16 or 0.01 ether or 10000000000000000
-    constructor(address _tokenAddress, uint256 _priceFull) public {
-        _token = CitizenERC20(_tokenAddress);
-        _price = _priceFull;
+    constructor(address tokenAddress, uint256 priceFull) public {
+        _token = CitizenERC20(tokenAddress);
+        _price = priceFull;
         _sovereign = _token.getOwner(); // sovereign;
     }
 
@@ -112,33 +139,27 @@ contract Government {
     /// @dev modifier to check if citizen's age is > 18
     modifier onlyAdults() {
         require(
-            _citizens[msg.sender].retirementDate < (block.timestamp + (_retirementAge - 18) * 52 weeks),
+            _citizens[msg.sender].retirementDate < (block.timestamp + (RETIREMENT_AGE - 18) * 52 weeks),
             "only adults can perform this action"
         );
-        _;
-    }
-
-    /// @dev modifier to check if company registered
-    modifier onlyCompanies() {
-        require(_companies[msg.sender] == true, "Only a company can perform this action");
         _;
     }
 
     //Getter functions yo view private variables
 
     // Returns the properties of a citizen
-    function citizen(address _citizenAddress) public view returns (Citizen memory) {
-        return _citizens[_citizenAddress];
+    function citizen(address citizenAddress) public view returns (Citizen memory) {
+        return _citizens[citizenAddress];
     }
 
-    // Checks if a company is registered
-    function company(address _companyAddress) public view returns (bool) {
-        return _companies[_companyAddress];
-    }
-
-    // Get address of deployed token contract TODO
+    // Get address of deployed token contract
     function tokenAddress() public view returns (CitizenERC20) {
         return _token;
+    }
+
+    // Get address of sovereign (STATE)
+    function sovereign() public view returns (address payable) {
+        return _sovereign;
     }
 
     // Gets price of 1 full CTZ (10^18 units of token) in wei
@@ -147,8 +168,8 @@ contract Government {
     }
 
     // Gets date of the last election vote of a citizen
-    function dateVote(address _electorAddress) public view returns (uint256) {
-        return _dateVote[_electorAddress];
+    function dateVote(address electorAddress) public view returns (uint256) {
+        return _dateVote[electorAddress];
     }
 
     // Gets date of the end of current manadte following elections
@@ -164,7 +185,7 @@ contract Government {
     // Election stage
 
     /// @dev function for citizens to elect admins, election is possible during last week of current mandate term to insure continuity of public service
-    function elect(address _candidateAddress)
+    function elect(address candidateAddress)
         public
         onlyAdults
         onlyAliveCitizens
@@ -172,135 +193,129 @@ contract Government {
         onlyAllowedCitizens
     {
         require(
-            _citizens[_candidateAddress].retirementDate < block.timestamp + (_retirementAge - _majorityAge) * 52 weeks,
+            _citizens[candidateAddress].retirementDate < block.timestamp + (RETIREMENT_AGE - MAJORITY_AGE) * 52 weeks,
             "only adults can be elected"
         );
         require(block.timestamp >= _currentMandateTerm - 1 weeks, "too early to elect");
         require(block.timestamp <= _currentMandateTerm, "too late to elect");
         require(
-            _citizens[_candidateAddress].nbOfCurrentAccountTokens >= _stakeAdmin,
+            _citizens[candidateAddress].nbOfCurrentAccountTokens >= STAKE_ADMIN,
             "candidate doesn't have enough CTZ to be elected"
         );
-        require(_citizens[_candidateAddress].isAlive == true, "candidate is not a citizen");
-        require(_citizens[_candidateAddress].termBanned < block.timestamp, "candidate is banned");
+        require(_citizens[candidateAddress].isAlive == true, "candidate is not a citizen");
+        require(_citizens[candidateAddress].termBanned < block.timestamp, "candidate is banned");
         require(
-            _dateVote[msg.sender] < _currentMandateTerm - _mandateDuration,
+            _dateVote[msg.sender] < _currentMandateTerm - MANDATE_DURATION,
             "citizen already voted for this election"
         );
-        _citizens[_candidateAddress].nbVotes++;
+        _citizens[candidateAddress].nbVotes++;
         _dateVote[msg.sender] = block.timestamp;
     }
 
     /// @dev function for the sovereign to set new mandate term
     function updateMandate() public onlySovereign {
-        _currentMandateTerm = block.timestamp + _mandateDuration;
+        _currentMandateTerm = block.timestamp + MANDATE_DURATION;
     }
 
     /// @dev function for the sovereign to name admins following election results after setting a new mandate term
-    function setAdmin(address _adminAddress) public onlySovereign {
+    function setAdmin(address adminAddress) public onlySovereign {
         require(
-            _citizens[_adminAddress].nbVotes >= _nbMinimumVotesToGetElected,
+            _citizens[adminAddress].nbVotes >= NB_MINIMUM_VOTES_TO_GET_ELECTED,
             "candidate has not received the minimum number of votes"
         );
         require(
-            _citizens[_adminAddress].nbOfCurrentAccountTokens >= _stakeAdmin,
+            _citizens[adminAddress].nbOfCurrentAccountTokens >= STAKE_ADMIN,
             "candidate doesn't have enough CTZ to be elected"
         );
-        require(_citizens[_adminAddress].isAlive == true, "candidate is not a citizen");
-        require(_citizens[_adminAddress].termBanned < block.timestamp, "candidate is banned");
-        _citizens[_adminAddress].termAdmin = _currentMandateTerm;
-        _citizens[_adminAddress].nbVotes = 0; //reset to 0 number of votes
+        require(_citizens[adminAddress].isAlive == true, "candidate is not a citizen");
+        require(_citizens[adminAddress].termBanned < block.timestamp, "candidate is banned");
+        _citizens[adminAddress].termAdmin = _currentMandateTerm;
+        _citizens[adminAddress].nbVotes = 0; //reset to 0 number of votes
     }
 
     /// @dev function to give sentences
-    function punish(address _sentenced, Punishment _option) public onlyAdmin {
+    function punish(address sentenced, Punishment option) public onlyAdmin {
         /// @dev addresses of sovereign and not a citizen cannot be punished
-        require(_sentenced != _sovereign, "sovereign cannot be punished");
-        require(_citizens[_sentenced].isAlive == true, "impossible punishment: not an alive citizen");
-        uint256 _currentBalance = _citizens[_sentenced].nbOfCurrentAccountTokens;
-        if (_option == Punishment.Small) {
-            _currentBalance = _currentBalance > _smallPunishment ? _currentBalance - _smallPunishment : 0;
-        } else if (_option == Punishment.Moderate) {
-            _currentBalance = _currentBalance > _moderatePunishment ? _currentBalance - _moderatePunishment : 0;
-        } else if (_option == Punishment.Serious) {
-            _currentBalance = _currentBalance > _seriousPunishment ? _currentBalance - _seriousPunishment : 0;
-        } else if (_option == Punishment.Treason) {
+        require(sentenced != _sovereign, "sovereign cannot be punished");
+        require(_citizens[sentenced].isAlive == true, "impossible punishment: not an alive citizen");
+        uint256 _currentBalance = _citizens[sentenced].nbOfCurrentAccountTokens;
+        if (option == Punishment.Small) {
+            _currentBalance = _currentBalance > SMALL_PUNISHMENT ? _currentBalance - SMALL_PUNISHMENT : 0;
+        } else if (option == Punishment.Moderate) {
+            _currentBalance = _currentBalance > MODERATE_PUNISHMENT ? _currentBalance - MODERATE_PUNISHMENT : 0;
+        } else if (option == Punishment.Serious) {
+            _currentBalance = _currentBalance > SERIOUS_PUNISHMENT ? _currentBalance - SERIOUS_PUNISHMENT : 0;
+        } else if (option == Punishment.Treason) {
             _currentBalance = 0;
-            _citizens[_sentenced].nbOfHealthInsuranceTokens = 0;
-            _citizens[_sentenced].nbOfUnemploymentTokens = 0;
-            _citizens[_sentenced].nbOfRetirementTokens = 0;
-            _citizens[_sentenced].termBanned = block.timestamp + _banishment;
-            _token.transferFrom(_sentenced, _sovereign, _token.balanceOf(_sentenced));
+            _citizens[sentenced].nbOfHealthInsuranceTokens = 0;
+            _citizens[sentenced].nbOfUnemploymentTokens = 0;
+            _citizens[sentenced].nbOfRetirementTokens = 0;
+            _citizens[sentenced].termBanned = block.timestamp + BANISHMENT;
+            _token.transferFrom(sentenced, _sovereign, _token.balanceOf(sentenced));
             //if the citizen is an admin
-            if (_citizens[_sentenced].termAdmin > block.timestamp) {
-                _citizens[_sentenced].termAdmin = block.timestamp;
+            if (_citizens[sentenced].termAdmin > block.timestamp) {
+                _citizens[sentenced].termAdmin = block.timestamp;
             }
         } else revert("Invalid punishment");
-        _citizens[_sentenced].nbOfCurrentAccountTokens = _currentBalance;
+        _citizens[sentenced].nbOfCurrentAccountTokens = _currentBalance;
     }
 
     /// @dev function for revocation of citizenship
-    function denaturalize(address _sentenced) public onlySovereign {
+    function denaturalize(address sentenced) public onlySovereign {
         /// @dev addresses of sovereign and not a citizen cannot be denaturalized
-        require(_sentenced != _sovereign, "sovereign cannot loose citizenship");
-        require(_citizens[_sentenced].isAlive == true, "impossible punishment: not an alive citizen");
-        _citizens[_sentenced].isAlive = false;
-        _citizens[_sentenced].employer = address(0);
-        _citizens[_sentenced].isWorking = false;
-        _citizens[_sentenced].isSick = false;
-        _citizens[_sentenced].nbVotes = 0;
-        _citizens[_sentenced].termAdmin = 0;
-        _citizens[_sentenced].retirementDate = 0;
-        _citizens[_sentenced].termBanned = 0;
-        _citizens[_sentenced].nbOfCurrentAccountTokens = 0;
-        _citizens[_sentenced].nbOfHealthInsuranceTokens = 0;
-        _citizens[_sentenced].nbOfUnemploymentTokens = 0;
-        _citizens[_sentenced].nbOfRetirementTokens = 0;
-        _token.transferFrom(_sentenced, _sovereign, _token.balanceOf(_sentenced));
+        require(sentenced != _sovereign, "sovereign cannot loose citizenship");
+        require(_citizens[sentenced].isAlive == true, "impossible punishment: not an alive citizen");
+        _citizens[sentenced].isAlive = false;
+        _citizens[sentenced].employer = address(0);
+        _citizens[sentenced].isWorking = false;
+        _citizens[sentenced].isSick = false;
+        _citizens[sentenced].nbVotes = 0;
+        _citizens[sentenced].termAdmin = 0;
+        _citizens[sentenced].retirementDate = 0;
+        _citizens[sentenced].termBanned = 0;
+        _citizens[sentenced].nbOfCurrentAccountTokens = 0;
+        _citizens[sentenced].nbOfHealthInsuranceTokens = 0;
+        _citizens[sentenced].nbOfUnemploymentTokens = 0;
+        _citizens[sentenced].nbOfRetirementTokens = 0;
+        _token.transferFrom(sentenced, _sovereign, _token.balanceOf(sentenced));
     }
 
     /// @dev function for sovereign to pardon citizens before their _banishment term
-    function pardon(address _beneficiary) public onlySovereign {
-        _citizens[_beneficiary].termBanned = block.timestamp;
+    function pardon(address pardoned) public onlySovereign {
+        _citizens[pardoned].termBanned = block.timestamp;
     }
 
     /// @dev function to change a citizen's health status
-    function changeHealthStatus(address _concerned, HealthStatus _option) public onlyAdmin {
-        if (_option == HealthStatus.Died) {
-            _citizens[_concerned].isAlive = false;
+    function changeHealthStatus(address concerned, HealthStatus option) public onlyAdmin {
+        if (option == HealthStatus.Died) {
+            _citizens[concerned].isAlive = false;
             //if the citizen is an admin
-            if (_citizens[_concerned].termAdmin > block.timestamp) {
-                _citizens[_concerned].termAdmin = block.timestamp;
+            if (_citizens[concerned].termAdmin > block.timestamp) {
+                _citizens[concerned].termAdmin = block.timestamp;
             }
-            _citizens[_concerned].nbOfCurrentAccountTokens = 0;
-            _citizens[_concerned].nbOfHealthInsuranceTokens = 0;
-            _citizens[_concerned].nbOfUnemploymentTokens = 0;
-            _citizens[_concerned].nbOfRetirementTokens = 0;
-            _token.transferFrom(_concerned, _sovereign, _token.balanceOf(_concerned));
-        } else if (_option == HealthStatus.Healthy) {
-            _citizens[_concerned].isSick = false;
-        } else if (_option == HealthStatus.Sick) {
-            _citizens[_concerned].isSick = true;
-            _citizens[_concerned].nbOfCurrentAccountTokens += _citizens[_concerned].nbOfHealthInsuranceTokens;
-            _citizens[_concerned].nbOfHealthInsuranceTokens = 0;
+            _citizens[concerned].nbOfCurrentAccountTokens = 0;
+            _citizens[concerned].nbOfHealthInsuranceTokens = 0;
+            _citizens[concerned].nbOfUnemploymentTokens = 0;
+            _citizens[concerned].nbOfRetirementTokens = 0;
+            _token.transferFrom(concerned, _sovereign, _token.balanceOf(concerned));
+        } else if (option == HealthStatus.Healthy) {
+            _citizens[concerned].isSick = false;
+        } else if (option == HealthStatus.Sick) {
+            _citizens[concerned].isSick = true;
+            _citizens[concerned].nbOfCurrentAccountTokens += _citizens[concerned].nbOfHealthInsuranceTokens;
+            _citizens[concerned].nbOfHealthInsuranceTokens = 0;
         } else revert("Invalid health status choice");
     }
 
     /// @dev function to change a citizen's employment status
-    function changeEmploymentStatus(address _concerned) public onlyAdmin {
-        if (_citizens[_concerned].isWorking == true) {
-            _citizens[_concerned].isWorking = false;
-            _citizens[_concerned].nbOfCurrentAccountTokens += _citizens[_concerned].nbOfUnemploymentTokens;
-            _citizens[_concerned].nbOfUnemploymentTokens = 0;
+    function changeEmploymentStatus(address concerned) public onlyAdmin {
+        if (_citizens[concerned].isWorking == true) {
+            _citizens[concerned].isWorking = false;
+            _citizens[concerned].nbOfCurrentAccountTokens += _citizens[concerned].nbOfUnemploymentTokens;
+            _citizens[concerned].nbOfUnemploymentTokens = 0;
         } else {
-            _citizens[_concerned].isWorking = true;
+            _citizens[concerned].isWorking = true;
         }
-    }
-
-    /// @dev function to register a company
-    function registerCompany(address _companyAddress) public onlyAdmin {
-        require(_companies[_companyAddress] == false, "company is already registered");
-        _companies[_companyAddress] = true;
     }
 
     // For citizens : actions
@@ -310,29 +325,29 @@ contract Government {
      *  possible afterwards for the government address to transfer his tokens)
      */
     function becomeCitizen(
-        uint8 _age,
-        bool _isWorking,
-        bool _isSick
+        uint8 age,
+        bool isWorking,
+        bool isSick
     ) public {
         require(_citizens[msg.sender].retirementDate == 0, "citizens can not ask again for citizenship");
         require(
             _token.allowance(msg.sender, address(this)) == _token.cap(),
             "future citizen needs to approve government address"
         );
-        uint256 retirementDate = _retirementAge >= _age
-            ? block.timestamp + (_retirementAge - _age) * 52 weeks
+        uint256 retirementDate = RETIREMENT_AGE >= age
+            ? block.timestamp + (RETIREMENT_AGE - age) * 52 weeks
             : block.timestamp;
-        _token.transferFrom(_sovereign, msg.sender, _awardCitizenship);
+        _token.transferFrom(_sovereign, msg.sender, AWARD_CITIZENSHIP);
         _citizens[msg.sender] = Citizen(
             true,
             address(0),
-            _isWorking,
-            _isSick,
+            isWorking,
+            isSick,
             0,
             0,
             retirementDate,
             0,
-            _awardCitizenship,
+            AWARD_CITIZENSHIP,
             0,
             0,
             0
@@ -345,49 +360,5 @@ contract Government {
         _citizens[msg.sender].isWorking = false;
         _citizens[msg.sender].nbOfCurrentAccountTokens += _citizens[msg.sender].nbOfRetirementTokens;
         _citizens[msg.sender].nbOfRetirementTokens = 0;
-    }
-
-    // For companies : actions
-
-    /// @dev function for a company to buy CTZ
-    // nbTokens is the number of units of a full token (e.g. 1 CTZ = 10^18 nbTokens)
-    function buyTokens(uint256 nbTokens) public payable onlyCompanies returns (bool) {
-        require(msg.value > 0, "minimum 1 wei");
-        //check if minimum 100 units of token bought since 1 wei = 100 units
-        require(nbTokens >= (10**uint256(_token.decimals()) / _price), "minimum 100 tokens");
-        //check if enough ether for nbTokens
-        require(
-            (nbTokens * _price) / 10**uint256(_token.decimals()) <= msg.value,
-            "not enough Ether to purchase this number of tokens"
-        );
-        uint256 _realPrice = (nbTokens * _price) / 10**uint256(_token.decimals());
-        uint256 _remaining = msg.value - _realPrice;
-        _token.transferFrom(_sovereign, msg.sender, nbTokens);
-        _sovereign.transfer(_realPrice);
-        if (_remaining > 0) {
-            msg.sender.transfer(_remaining);
-        }
-        return true;
-    }
-
-    /// @dev function to recruit a citizen
-    function recruit(address _employee) public onlyCompanies {
-        require(_citizens[_employee].employer != msg.sender, "employee already working for this company");
-        _citizens[_employee].employer = msg.sender;
-    }
-
-    /// @dev function for a company to pay salaries
-    function paySalary(address payable _employee, uint256 _amount) public onlyCompanies {
-        require(_citizens[_employee].employer == msg.sender, "not an employee of this company");
-        require(_token.balanceOf(msg.sender) >= _amount, "company balance is less than the amount");
-        _citizens[_employee].nbOfHealthInsuranceTokens = _amount / 10;
-        _citizens[_employee].nbOfUnemploymentTokens = _amount / 10;
-        _citizens[_employee].nbOfRetirementTokens = _amount / 10;
-        _citizens[_employee].nbOfCurrentAccountTokens =
-            _token.balanceOf(_employee) -
-            _citizens[_employee].nbOfHealthInsuranceTokens -
-            _citizens[_employee].nbOfUnemploymentTokens -
-            _citizens[_employee].nbOfRetirementTokens;
-        _token.transfer(_employee, _amount);
     }
 }

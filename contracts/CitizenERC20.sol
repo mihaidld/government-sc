@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: MIT
-//000000000000000000
-
-//contract deployed at 0x95fe2739d3A75A44253eba0eF61F2255d3659d65
-
 pragma solidity ^0.6.0;
+
+//000000000000000000
+//contract deployed at 0x35517Ff58E95fE46F9AbD4D3b10F4995844139e9
+
+//TODO: import OZ ERC20 or ERC777
 
 contract CitizenERC20 {
     // Mapping from account addresses to current balance.

@@ -1,10 +1,14 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.6.0;
 pragma experimental ABIEncoderV2;
+
 import "./Government.sol";
 
-//contract Government deployed at 0x2600378267A97f0C24dCa3d70F98d1E461dCe560
-//contract Proposal deployed at 0x9f16B106Ebe2D849c22845d06609415Ada2791b6
+//contract Policy deployed at 0xCB77BC67287dE587366acc98da997C50d1925c2f
+
+/* TODO: 
+consider using Counter.Counter library
+*/
 
 contract Policy {
     //government contract token
@@ -34,8 +38,8 @@ contract Policy {
     enum Option {Blank, Yes, No}
 
     /// @dev priceFull for 1 full CTZ (10^18 tokens) in wei : 10**16 or 0.01 ether or 10000000000000000
-    constructor(address governmentAddress_) public {
-        _government = Government(governmentAddress_);
+    constructor(address governmentAddress) public {
+        _government = Government(governmentAddress);
     }
 
     /// @dev modifier to check if admin
@@ -45,28 +49,28 @@ contract Policy {
     }
 
     // Gets properties of a proposal
-    function proposal(uint8 _id) public view returns (Proposal memory) {
-        return _proposals[_id];
+    function proposal(uint8 id) public view returns (Proposal memory) {
+        return _proposals[id];
     }
 
     //For Admin : government affairs
 
     /// @dev function to propose new policy
-    function proposePolicy(string memory _policy, string memory _description) public onlyAdmin {
+    function proposePolicy(string memory policy, string memory description) public onlyAdmin {
         _counterIdProposal++;
-        _proposals[_counterIdProposal] = Proposal(_policy, _description, 0, 0, 0);
+        _proposals[_counterIdProposal] = Proposal(policy, description, 0, 0, 0);
     }
 
     /// @dev function to vote on policy proposals
-    function votePolicy(uint8 _id, Option _voteOption) public onlyAdmin {
-        require(_didVoteForProposal[msg.sender][_id] == false, "admin already voted for this proposal");
-        if (_voteOption == Option.Blank) {
-            _proposals[_id].counterBlankVotes++;
-        } else if (_voteOption == Option.Yes) {
-            _proposals[_id].counterForVotes++;
-        } else if (_voteOption == Option.No) {
-            _proposals[_id].counterAgainstVotes++;
+    function votePolicy(uint8 id, Option voteOption) public onlyAdmin {
+        require(_didVoteForProposal[msg.sender][id] == false, "admin already voted for this proposal");
+        if (voteOption == Option.Blank) {
+            _proposals[id].counterBlankVotes++;
+        } else if (voteOption == Option.Yes) {
+            _proposals[id].counterForVotes++;
+        } else if (voteOption == Option.No) {
+            _proposals[id].counterAgainstVotes++;
         } else revert("Invalid vote");
-        _didVoteForProposal[msg.sender][_id] = true;
+        _didVoteForProposal[msg.sender][id] = true;
     }
 }
