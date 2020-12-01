@@ -1,34 +1,34 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.6.0;
+pragma solidity >=0.6.0 <0.8.0;
 pragma experimental ABIEncoderV2;
 
-import "./CitizenERC20.sol";
-import "./Government.sol";
+import "./Token.sol";
+import "./State.sol";
 
-//contract Company deployed at 0x23F80Fe8445caBf3f46C8f2a92917d0C5DB72c00
+//contract Company deployed at
 
 /* TODO:
 
-*/
+
 
 contract Company {
     //national token
-    CitizenERC20 private _token;
+    Token private _token;
 
-    //government contract token
-    Government private _government;
+    //state contract token
+    State private _state;
 
     /// @dev mapping to register a company: companies[address] = true
     mapping(address => bool) private _companies;
 
-    constructor(address tokenAddress, address governmentAddress) public {
-        _token = CitizenERC20(tokenAddress);
-        _government = Government(governmentAddress);
+    constructor(address tokenAddress, address stateAddress) public {
+        _token = Token(tokenAddress);
+        _state = State(stateAddress);
     }
 
     /// @dev modifier to check if admin
     modifier onlyAdmin() {
-        require(_government.citizen(msg.sender).termAdmin >= block.timestamp, "only admin can perform this action");
+        require(_state.citizen(msg.sender).termAdmin >= block.timestamp, "only admin can perform this action");
         _;
     }
 
@@ -54,16 +54,16 @@ contract Company {
     function buyTokens(uint256 nbTokens) public payable onlyCompanies returns (bool) {
         require(msg.value > 0, "minimum 1 wei");
         //check if minimum 100 units of token bought since 1 wei = 100 units
-        require(nbTokens >= (10**uint256(_token.decimals()) / _government.price()), "minimum 100 tokens");
+        require(nbTokens >= (10**uint256(_token.decimals()) / _state.price()), "minimum 100 tokens");
         //check if enough ether for nbTokens
         require(
-            (nbTokens * _government.price()) / 10**uint256(_token.decimals()) <= msg.value,
+            (nbTokens * _state.price()) / 10**uint256(_token.decimals()) <= msg.value,
             "not enough Ether to purchase this number of tokens"
         );
-        uint256 _realPrice = (nbTokens * _government.price()) / 10**uint256(_token.decimals());
+        uint256 _realPrice = (nbTokens * _state.price()) / 10**uint256(_token.decimals());
         uint256 _remaining = msg.value - _realPrice;
-        _token.transferFrom(_government.sovereign(), msg.sender, nbTokens);
-        _government.sovereign().transfer(_realPrice);
+        _token.operatorSend(_state.sovereign(), msg.sender, nbTokens, "", "");
+        _state.sovereign().transfer(_realPrice);
         if (_remaining > 0) {
             msg.sender.transfer(_remaining);
         }
@@ -72,22 +72,23 @@ contract Company {
 
     /// @dev function to recruit a citizen
     function recruit(address employee) public view onlyCompanies {
-        require(_government.citizen(employee).employer != msg.sender, "employee already working for this company");
-        _government.citizen(employee).employer = msg.sender;
+        require(_state.citizen(employee).employer != msg.sender, "employee already working for this company");
+        _state.citizen(employee).employer = msg.sender;
     }
 
     /// @dev function for a company to pay salaries
     function paySalary(address payable employee, uint256 amount) public onlyCompanies {
-        require(_government.citizen(employee).employer == msg.sender, "not an employee of this company");
+        require(_state.citizen(employee).employer == msg.sender, "not an employee of this company");
         require(_token.balanceOf(msg.sender) >= amount, "company balance is less than the amount");
-        _government.citizen(employee).nbOfHealthInsuranceTokens = amount / 10;
-        _government.citizen(employee).nbOfUnemploymentTokens = amount / 10;
-        _government.citizen(employee).nbOfRetirementTokens = amount / 10;
-        _government.citizen(employee).nbOfCurrentAccountTokens =
+        _state.citizen(employee).nbOfHealthInsuranceTokens = amount / 10;
+        _state.citizen(employee).nbOfUnemploymentTokens = amount / 10;
+        _state.citizen(employee).nbOfRetirementTokens = amount / 10;
+        _state.citizen(employee).nbOfCurrentAccountTokens =
             _token.balanceOf(employee) -
-            _government.citizen(employee).nbOfHealthInsuranceTokens -
-            _government.citizen(employee).nbOfUnemploymentTokens -
-            _government.citizen(employee).nbOfRetirementTokens;
-        _token.transfer(employee, amount);
+            _state.citizen(employee).nbOfHealthInsuranceTokens -
+            _state.citizen(employee).nbOfUnemploymentTokens -
+            _state.citizen(employee).nbOfRetirementTokens;
+        _token.send(employee, amount, "");
     }
 }
+*/

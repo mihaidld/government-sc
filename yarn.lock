@@ -260,6 +260,11 @@
     find-up "^4.1.0"
     fs-extra "^8.1.0"
 
+"@openzeppelin/contracts@^3.2.0":
+  version "3.2.0"
+  resolved "https://registry.yarnpkg.com/@openzeppelin/contracts/-/contracts-3.2.0.tgz#3e6b3a7662d8ed64271ade96ef42655db983fd9d"
+  integrity sha512-bUOmkSoPkjnUyMiKo6RYnb0VHBk5D9KKDAgNLzF41aqAM3TeE0yGdFF5dVRcV60pZdJLlyFT/jjXIZCWyyEzAQ==
+
 "@openzeppelin/test-environment@^0.1.6":
   version "0.1.6"
   resolved "https://registry.yarnpkg.com/@openzeppelin/test-environment/-/test-environment-0.1.6.tgz#6abdf6218ad236be2815e123c963db6f1e02c401"
@@ -9108,7 +9113,7 @@ web3-utils@1.3.0, web3-utils@^1.2.5:
     underscore "1.9.1"
     utf8 "3.0.0"
 
-web3@*, web3@^1.0.0-beta.34, web3@^1.2.5, web3@^1.3.0:
+web3@*, web3@^1.0.0-beta.34, web3@^1.2.5:
   version "1.3.0"
   resolved "https://registry.yarnpkg.com/web3/-/web3-1.3.0.tgz#8fe4cd6e2a21c91904f343ba75717ee4c76bb349"
   integrity sha512-4q9dna0RecnrlgD/bD1C5S+81Untbd6Z/TBD7rb+D5Bvvc0Wxjr4OP70x+LlnwuRDjDtzBwJbNUblh2grlVArw==

@@ -10,6 +10,7 @@
       "max-states-count": "off",
       "not-rely-on-time": "off",
       "var-name-mixedcase": "off",
-      "state-visibility": "off"
+      "state-visibility": "off",
+      "check-send-result": "off"
     }
   }

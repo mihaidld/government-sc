@@ -1,18 +1,17 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.6.0;
+pragma solidity >=0.6.0 <0.8.0;
 pragma experimental ABIEncoderV2;
 
-import "./Government.sol";
+import "./State.sol";
 
-//contract Policy deployed at 0xCB77BC67287dE587366acc98da997C50d1925c2f
+//contract Policy deployed at
 
-/* TODO: 
-consider using Counter.Counter library
-*/
+/* // TODO: use SafeMath?, consider using Counter.Counter library
+
 
 contract Policy {
-    //government contract token
-    Government private _government;
+    //State contract token
+    State private _state;
 
     /// @dev struct Proposal to be voted by admins
     struct Proposal {
@@ -38,13 +37,13 @@ contract Policy {
     enum Option {Blank, Yes, No}
 
     /// @dev priceFull for 1 full CTZ (10^18 tokens) in wei : 10**16 or 0.01 ether or 10000000000000000
-    constructor(address governmentAddress) public {
-        _government = Government(governmentAddress);
+    constructor(address stateAddress) public {
+        _state = State(stateAddress);
     }
 
     /// @dev modifier to check if admin
     modifier onlyAdmin() {
-        require(_government.citizen(msg.sender).termAdmin >= block.timestamp, "only admin can perform this action");
+        require(_state.citizen(msg.sender).termAdmin >= block.timestamp, "only admin can perform this action");
         _;
     }
 
@@ -74,3 +73,4 @@ contract Policy {
         _didVoteForProposal[msg.sender][id] = true;
     }
 }
+*/
