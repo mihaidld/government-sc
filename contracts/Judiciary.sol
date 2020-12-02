@@ -3,7 +3,7 @@ pragma solidity >=0.6.0 <0.8.0;
 pragma experimental ABIEncoderV2;
 
 import "./Token.sol";
-import "./State.sol";
+import "./Government.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 
 //contract Punishment deployed at

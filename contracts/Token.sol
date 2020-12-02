@@ -1,35 +1,53 @@
 // SPDX-License-Identifier: MIT
+
 pragma solidity >=0.6.0 <0.8.0;
+
 import "@openzeppelin/contracts/token/ERC777/ERC777.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
+import "./Government.sol";
 
-import "./State.sol";
+/// @author Mihai Doldur
+/// @title A contract for an ERC777 token
+/// @notice Owner can mint and burn tokens
+/// @dev All function calls are currently implemented without side effects, the contract inherits OpenZeppelin contracts ERC777 and Ownable
 
-//contract Token deployed at
+// contract Token deployed at 0x29ee059fA01A002dDd21A82B1beaABb62705b5Fb
 
 /*
-TODO: add capped ou pausable?
+TODO: add capped or pausable?
+use appAddress pnly once as parameter?
  */
 
-// ERC777
 contract Token is ERC777, Ownable {
-    // address payable private _ownerAddress;
+    // Variables of storage
 
-    //state
-    State private _state;
+    /// @dev government contract using the tokens
+    Government private _government;
 
+    /** @dev transfers ownership to _owner, sets address of Government token
+     * becoming a default operator, mints to the owner of the contract an initial
+     * supply of 1 million CTZ, calls setToken function of the Token contract,
+     * sets name and symbol of the token
+     */
+    /// @param owner_ The address becoming owner of the contract
+    /// @param initialSupply Amount of tokens minted to the owner
+    /// @param appAddress Address of the Goverment contract using the tokens
+    /// @param defaultOperators Array with 1 element, the address of the Goverment contract using the tokens
     constructor(
         address owner_,
         uint256 initialSupply,
         address appAddress,
         address[] memory defaultOperators
     ) public ERC777("CITIZEN", "CTZ", defaultOperators) {
-        _state = State(appAddress);
+        _government = Government(appAddress);
         transferOwnership(owner_);
         _mint(owner(), initialSupply, "", "");
-        _state.setToken();
+        _government.setToken();
     }
 
+    /// @dev mints tokens, can be called only by the owner
+    /// @param account Address of the beneficiary
+    /// @param amount Number of tokens being minted
     function mint(address account, uint256 amount) public onlyOwner {
         _mint(account, amount, "", "");
     }

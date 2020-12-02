@@ -4,7 +4,7 @@ pragma experimental ABIEncoderV2;
 /* 
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "./Token.sol";
-import "./State.sol";
+import "./Government.sol";
 
 //contract Elections deployed at
 
