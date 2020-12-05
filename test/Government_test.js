@@ -1,8 +1,21 @@
 /* eslint-disable comma-dangle */
 /* eslint-disable no-unused-expressions */
 const { contract, accounts } = require('@openzeppelin/test-environment');
-const { BN, singletons, constants, expectRevert, balance, send, ether, time } = require('@openzeppelin/test-helpers');
+const {
+  BN,
+  singletons,
+  constants,
+  expectRevert,
+  expectEvent,
+  balance,
+  send,
+  ether,
+  time,
+} = require('@openzeppelin/test-helpers');
 const { expect } = require('chai');
+
+/* TODO: update getRetired for enployment
+Events */
 
 const Government = contract.fromArtifact('Government');
 const Token = contract.fromArtifact('Token');
@@ -100,6 +113,14 @@ describe('Government', function () {
       await this.government.registerHospital(hospital, { from: owner });
       expect(await this.government.checkHospital(hospital)).to.be.true;
     });
+
+    it('emits an event SetHospital with hospital status changed', async function () {
+      const truffleReceipt = await this.government.registerHospital(hospital, { from: owner });
+      expectEvent(truffleReceipt, 'SetHospital', {
+        hospital: hospital,
+        isHospital: true,
+      });
+    });
   });
 
   context('unregister a hospital', function () {
@@ -127,6 +148,15 @@ describe('Government', function () {
       await this.government.unregisterHospital(hospital, { from: owner });
       expect(await this.government.checkHospital(hospital)).to.be.false;
     });
+
+    it('emits an event SetHospital with hospital status changed', async function () {
+      await this.government.registerHospital(hospital, { from: owner });
+      const truffleReceipt = await this.government.unregisterHospital(hospital, { from: owner });
+      expectEvent(truffleReceipt, 'SetHospital', {
+        hospital: hospital,
+        isHospital: false,
+      });
+    });
   });
 
   context('register a company', function () {
@@ -152,6 +182,14 @@ describe('Government', function () {
     it('sets to true the value corresponding to company address in _companies mapping', async function () {
       await this.government.registerCompany(company, { from: owner });
       expect(await this.government.checkCompany(company)).to.be.true;
+    });
+
+    it('emits an event SetCompany with company status changed', async function () {
+      const truffleReceipt = await this.government.registerCompany(company, { from: owner });
+      expectEvent(truffleReceipt, 'SetCompany', {
+        company: company,
+        isCompany: true,
+      });
     });
   });
 
@@ -179,6 +217,15 @@ describe('Government', function () {
       expect(await this.government.checkCompany(company), 'registration').to.be.true;
       await this.government.unregisterCompany(company, { from: owner });
       expect(await this.government.checkCompany(company), 'unregistration').to.be.false;
+    });
+
+    it('emits an event SetCompany with company status changed', async function () {
+      await this.government.registerCompany(company, { from: owner });
+      const truffleReceipt = await this.government.unregisterCompany(company, { from: owner });
+      expectEvent(truffleReceipt, 'SetCompany', {
+        company: company,
+        isCompany: false,
+      });
     });
   });
 
@@ -241,6 +288,11 @@ describe('Government', function () {
         expect(await this.token.balanceOf(person1)).to.be.bignumber.equal(new BN('0'));
         expect(await this.token.balanceOf(owner)).to.be.bignumber.equal(initialBalanceSovereign.add(balanceDied));
       });
+
+      it('emits an event LostCitizenship(former Citizen address)', async function () {
+        const truffleReceipt = await this.government.changeHealthStatus(person1, '0', { from: hospital });
+        expectEvent(truffleReceipt, 'LostCitizenship', { citizen: person1 });
+      });
     });
 
     context('option 1 Healthy', function () {
@@ -261,6 +313,17 @@ describe('Government', function () {
         await this.government.changeHealthStatus(person1, '1', { from: hospital });
         const pers1 = await this.government.getCitizen(person1);
         expect(pers1.isSick).to.be.false;
+      });
+
+      it('emits an event UpdatedHealth with citizen properties changed', async function () {
+        const truffleReceipt = await this.government.changeHealthStatus(person1, '1', { from: hospital });
+        const pers1 = await this.government.getCitizen(person1);
+        expectEvent(truffleReceipt, 'UpdatedHealth', {
+          citizen: person1,
+          isSick: false,
+          currentTokens: pers1.currentTokens,
+          healthTokens: pers1.healthTokens,
+        });
       });
     });
 
@@ -290,14 +353,23 @@ describe('Government', function () {
 
       it('transfers all health insurance tokens to current account', async function () {
         const pers1 = await this.government.getCitizen(person1);
-        const currentAccount = new BN(pers1.nbOfCurrentAccountTokens);
-        const healthInsurance = new BN(pers1.nbOfHealthInsuranceTokens);
+        const currentAccount = new BN(pers1.currentTokens);
+        const healthInsurance = new BN(pers1.healthTokens);
         await this.government.changeHealthStatus(person1, '2', { from: hospital });
         const _pers1 = await this.government.getCitizen(person1);
-        expect(_pers1.nbOfCurrentAccountTokens, 'current account').to.be.bignumber.equal(
-          currentAccount.add(healthInsurance),
-        );
-        expect(_pers1.nbOfHealthInsuranceTokens, 'health insurance').to.be.bignumber.equal(new BN('0'));
+        expect(_pers1.currentTokens, 'current account').to.be.bignumber.equal(currentAccount.add(healthInsurance));
+        expect(_pers1.healthTokens, 'health insurance').to.be.bignumber.equal(new BN('0'));
+      });
+
+      it('emits an event UpdatedHealth with citizen properties changed', async function () {
+        const truffleReceipt = await this.government.changeHealthStatus(person1, '2', { from: hospital });
+        const pers1 = await this.government.getCitizen(person1);
+        expectEvent(truffleReceipt, 'UpdatedHealth', {
+          citizen: person1,
+          isSick: true,
+          currentTokens: pers1.currentTokens,
+          healthTokens: pers1.healthTokens,
+        });
       });
     });
   });
@@ -347,17 +419,30 @@ describe('Government', function () {
         await this.government.becomeCitizen(AGE1, { from: person1 });
         await this.government.registerCompany(company, { from: owner });
         await this.government.buyTokens(NB_TOKENS, { from: company, value: ether('1') });
-        await this.government.changeEmploymentStatus(person1, { from: company });
       });
 
       it('sets isWorking value to true', async function () {
+        await this.government.changeEmploymentStatus(person1, { from: company });
         const pers1 = await this.government.getCitizen(person1);
         expect(pers1.isWorking).to.be.true;
       });
 
       it('sets employer', async function () {
+        await this.government.changeEmploymentStatus(person1, { from: company });
         const pers1 = await this.government.getCitizen(person1);
         expect(pers1.employer).to.be.equal(company);
+      });
+
+      it('emits an event UpdatedEmployment with citizen properties changed', async function () {
+        const truffleReceipt = await this.government.changeEmploymentStatus(person1, { from: company });
+        const pers1 = await this.government.getCitizen(person1);
+        expectEvent(truffleReceipt, 'UpdatedEmployment', {
+          citizen: person1,
+          employer: company,
+          isWorking: true,
+          currentTokens: pers1.currentTokens,
+          unemploymentTokens: pers1.unemploymentTokens,
+        });
       });
     });
 
@@ -393,14 +478,28 @@ describe('Government', function () {
 
       it('transfers all unemployment tokens to current account', async function () {
         const pers1 = await this.government.getCitizen(person1);
-        const currentAccount = new BN(pers1.nbOfCurrentAccountTokens);
-        const unemploymentInsurance = new BN(pers1.nbOfUnemploymentTokens);
+        const currentAccount = new BN(pers1.currentTokens);
+        const unemploymentInsurance = new BN(pers1.unemploymentTokens);
         await this.government.changeEmploymentStatus(person1, { from: company });
         const _pers1 = await this.government.getCitizen(person1);
-        expect(_pers1.nbOfCurrentAccountTokens, 'current account').to.be.bignumber.equal(
+        expect(_pers1.currentTokens, 'current account').to.be.bignumber.equal(
           currentAccount.add(unemploymentInsurance),
         );
-        expect(_pers1.nbOfUnemploymentTokens, 'unemployment insurance').to.be.bignumber.equal(new BN('0'));
+        expect(_pers1.unemploymentTokens, 'unemployment insurance').to.be.bignumber.equal(new BN('0'));
+      });
+
+      it('emits an event UpdatedEmployment with citizen properties changed', async function () {
+        const pers1 = await this.government.getCitizen(person1);
+        const current = new BN(pers1.currentTokens);
+        const unemploymentInsurance = new BN(pers1.unemploymentTokens);
+        const truffleReceipt = await this.government.changeEmploymentStatus(person1, { from: company });
+        expectEvent(truffleReceipt, 'UpdatedEmployment', {
+          citizen: person1,
+          employer: constants.ZERO_ADDRESS,
+          isWorking: false,
+          currentTokens: current.add(unemploymentInsurance),
+          unemploymentTokens: new BN('0'),
+        });
       });
     });
   });
@@ -436,16 +535,16 @@ describe('Government', function () {
         await expectRevert(this.government.getRetired({ from: person1 }), 'Government: retirement possible only at 67');
         await time.increase(time.duration.years(27));
         const pers1 = await this.government.getCitizen(person1);
-        expect(pers1.nbOfRetirementTokens, 'retirement tokens person 1 before').to.be.bignumber.equal(
+        expect(pers1.retirementTokens, 'retirement tokens person 1 before').to.be.bignumber.equal(
           NB_TOKENS.div(new BN('10')),
         );
         await this.government.getRetired({ from: person1 });
         const _pers1 = await this.government.getCitizen(person1);
-        expect(_pers1.nbOfRetirementTokens, 'retirement tokens person 1 after').to.be.bignumber.equal(new BN('0'));
+        expect(_pers1.retirementTokens, 'retirement tokens person 1 after').to.be.bignumber.equal(new BN('0'));
       });
     });
 
-    context('change to working status and transfer of tokens', function () {
+    context('change of working status and transfer of tokens', function () {
       before(async function () {
         this.erc1820 = await singletons.ERC1820Registry(registryFunder);
       });
@@ -474,16 +573,34 @@ describe('Government', function () {
         expect(pers2.employer).to.be.equal(constants.ZERO_ADDRESS);
       });
 
-      it('transfers all retirement tokens to current account', async function () {
+      it('transfers all retirement and unemployment tokens to current account', async function () {
         const pers2 = await this.government.getCitizen(person2);
-        const currentAccount = new BN(pers2.nbOfCurrentAccountTokens);
-        const retirementInsurance = new BN(pers2.nbOfRetirementTokens);
+        const currentAccount = new BN(pers2.currentTokens);
+        const retirementInsurance = new BN(pers2.retirementTokens);
+        const unemploymentInsurance = new BN(pers2.unemploymentTokens);
+        const _addedAmount = retirementInsurance.add(unemploymentInsurance);
         await this.government.getRetired({ from: person2 });
         const _pers2 = await this.government.getCitizen(person2);
-        expect(_pers2.nbOfCurrentAccountTokens, 'current account').to.be.bignumber.equal(
-          currentAccount.add(retirementInsurance),
-        );
-        expect(_pers2.nbOfRetirementTokens, 'retirement insurance').to.be.bignumber.equal(new BN('0'));
+        expect(_pers2.currentTokens, 'current account').to.be.bignumber.equal(currentAccount.add(_addedAmount));
+        expect(_pers2.retirementTokens, 'retirement insurance').to.be.bignumber.equal(new BN('0'));
+        expect(_pers2.unemploymentTokens, 'unemployment insurance').to.be.bignumber.equal(new BN('0'));
+      });
+
+      it('emits an event Retired with citizen properties changed', async function () {
+        const pers2 = await this.government.getCitizen(person2);
+        const current = new BN(pers2.currentTokens);
+        const unemploymentInsurance = new BN(pers2.unemploymentTokens);
+        const retirementInsurance = new BN(pers2.retirementTokens);
+        const _addedAmount = unemploymentInsurance.add(retirementInsurance);
+        const truffleReceipt = await this.government.getRetired({ from: person2 });
+        expectEvent(truffleReceipt, 'Retired', {
+          citizen: person2,
+          employer: constants.ZERO_ADDRESS,
+          isWorking: false,
+          currentTokens: current.add(_addedAmount),
+          unemploymentTokens: new BN('0'),
+          retirementTokens: new BN('0'),
+        });
       });
     });
   });
@@ -584,6 +701,11 @@ describe('Government', function () {
       await this.government.denaturalize(sentenced, { from: owner });
       expect(await this.token.balanceOf(sentenced)).to.be.bignumber.equal(new BN('0'));
       expect(await this.token.balanceOf(owner)).to.be.bignumber.equal(initialBalanceSovereign.add(AWARD));
+    });
+
+    it('emits an event LostCitizenship(former Citizen address)', async function () {
+      const truffleReceipt = await this.government.denaturalize(sentenced, { from: owner });
+      expectEvent(truffleReceipt, 'LostCitizenship', { citizen: sentenced });
     });
   });
 
@@ -740,25 +862,43 @@ describe('Government', function () {
 
       it('updates employee accounts', async function () {
         const pers1 = await this.government.getCitizen(person1);
-        const currentAccount = new BN(pers1.nbOfCurrentAccountTokens);
-        const healthInsurance = new BN(pers1.nbOfHealthInsuranceTokens);
-        const unemploymentInsurance = new BN(pers1.nbOfUnemploymentTokens);
-        const retirementInsurance = new BN(pers1.nbOfRetirementTokens);
+        const currentAccount = new BN(pers1.currentTokens);
+        const healthInsurance = new BN(pers1.healthTokens);
+        const unemploymentInsurance = new BN(pers1.unemploymentTokens);
+        const retirementInsurance = new BN(pers1.retirementTokens);
         await this.government.paySalary(person1, NB_TOKENS, { from: company });
         const _partSalary = NB_TOKENS.div(new BN('10'));
         const _pers1 = await this.government.getCitizen(person1);
-        expect(_pers1.nbOfCurrentAccountTokens, 'current account').to.be.bignumber.equal(
+        expect(_pers1.currentTokens, 'current account').to.be.bignumber.equal(
           currentAccount.add(NB_TOKENS.sub(_partSalary.mul(new BN('3')))),
         );
-        expect(_pers1.nbOfHealthInsuranceTokens, 'health insurance').to.be.bignumber.equal(
-          healthInsurance.add(_partSalary),
-        );
-        expect(_pers1.nbOfUnemploymentTokens, 'unemployment insurance').to.be.bignumber.equal(
+        expect(_pers1.healthTokens, 'health insurance').to.be.bignumber.equal(healthInsurance.add(_partSalary));
+        expect(_pers1.unemploymentTokens, 'unemployment insurance').to.be.bignumber.equal(
           unemploymentInsurance.add(_partSalary),
         );
-        expect(_pers1.nbOfRetirementTokens, 'retirement insurance').to.be.bignumber.equal(
+        expect(_pers1.retirementTokens, 'retirement insurance').to.be.bignumber.equal(
           retirementInsurance.add(_partSalary),
         );
+      });
+
+      it('emits an event Paid with citizen properties changed', async function () {
+        const pers1 = await this.government.getCitizen(person1);
+        const current = new BN(pers1.currentTokens);
+        const healthInsurance = new BN(pers1.healthTokens);
+        const unemploymentInsurance = new BN(pers1.unemploymentTokens);
+        const retirementInsurance = new BN(pers1.retirementTokens);
+        const _partSalary = NB_TOKENS.div(new BN('10'));
+        const _addedCurrent = NB_TOKENS.sub(_partSalary.mul(new BN('3')));
+        const truffleReceipt = await this.government.paySalary(person1, NB_TOKENS, { from: company });
+        expectEvent(truffleReceipt, 'Paid', {
+          citizen: person1,
+          amount: NB_TOKENS,
+          employer: company,
+          currentTokens: current.add(_addedCurrent),
+          healthTokens: healthInsurance.add(_partSalary),
+          unemploymentTokens: unemploymentInsurance.add(_partSalary),
+          retirementTokens: retirementInsurance.add(_partSalary),
+        });
       });
     });
   });

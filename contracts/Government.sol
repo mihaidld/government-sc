@@ -14,13 +14,11 @@ import "./Token.sol";
  * contract inherits OpenZeppelin contract Ownable and uses SafeMath library
  */
 
-// contract Government deployed at 0x5c15550e4c0e33d0e0C2f4EaBE5DDa1dCE52E7A9
+// contract Government deployed at 0x2F1faF0a5D80c4f8D1cB7a671C814247542cFFc5
 
 /* TODO: 
 - import and use Access Control from OZ to replace modifiers? 
-- Test : test every function, require, modifier 
-- emit Events for state changes (ex. UpdatedCitizen or specific event for each change
-ChangedHealth etc.) 
+- Test : test events token transfers (BecomeCitizen, BuyToken etc.) 
 - check NatSpec comments
 - module for company?
 */
@@ -45,10 +43,10 @@ contract Government is Ownable {
         bool isWorking; //set by a company
         bool isSick; //set by a hospital
         uint256 retirementDate; //set when becoming citizen based on age
-        uint256 nbOfCurrentAccountTokens; //100 full tokens (100 * 10**18 at registration), can be increased by salaries
-        uint256 nbOfHealthInsuranceTokens; //10% from each salary, acces to it when hospital declares citizen sick
-        uint256 nbOfUnemploymentTokens; //10% from each salary, acces to it when company declares citizen unemployed
-        uint256 nbOfRetirementTokens; //10% from each salary, acces to it at age 67
+        uint256 currentTokens; //100 full tokens (100 * 10**18 at registration), can be increased by salaries
+        uint256 healthTokens; //10% from each salary, acces to it when hospital declares citizen sick
+        uint256 unemploymentTokens; //10% from each salary, acces to it when company declares citizen unemployed
+        uint256 retirementTokens; //10% from each salary, acces to it at age 67
     }
 
     /// @dev mapping from an address to a Citizen
@@ -69,19 +67,61 @@ contract Government is Ownable {
     /// @dev health status options using enum type: 0 -> HealthStatus.Died, 1 -> HealthStatus.Healthy, 2 -> HealthStatus.Sick
     enum HealthStatus {Died, Healthy, Sick}
 
-    /*     /// @dev event emitted when a citizen property changes
-    event UpdatedCitizen(
+    /// @dev event emitted when a citizen is created
+    event CreatedCitizen(
         address indexed citizen,
         bool isAlive,
         address employer,
         bool isWorking,
         bool isSick,
         uint256 retirementDate,
-        uint256 nbOfCurrentAccountTokens,
-        uint256 nbOfHealthInsuranceTokens,
-        uint256 nbOfUnemploymentTokens,
-        uint256 nbOfRetirementTokens
-    ); */
+        uint256 currentTokens,
+        uint256 healthTokens,
+        uint256 unemploymentTokens,
+        uint256 retirementTokens
+    );
+
+    /// @dev event emitted when a citizen looses citizenship through denaturalization or death
+    event LostCitizenship(address indexed citizen);
+
+    /// @dev event emitted when a hospital updates a citizen's health status between sick and healthy
+    event UpdatedHealth(address indexed citizen, bool isSick, uint256 currentTokens, uint256 healthTokens);
+
+    /// @dev event emitted when a company updates a citizen's employment status between working and unemployed
+    event UpdatedEmployment(
+        address indexed citizen,
+        address employer,
+        bool isWorking,
+        uint256 currentTokens,
+        uint256 unemploymentTokens
+    );
+
+    /// @dev event emitted when a citizen retires
+    event Retired(
+        address indexed citizen,
+        address employer,
+        bool isWorking,
+        uint256 currentTokens,
+        uint256 unemploymentTokens,
+        uint256 retirementTokens
+    );
+
+    /// @dev event emitted when the owner registers (sets to true) and unregisters (sets to false) a hospital
+    event SetHospital(address indexed hospital, bool isHospital);
+
+    /// @dev event emitted when the owner registers (sets to true) and unregisters (sets to false) a company
+    event SetCompany(address indexed company, bool isCompany);
+
+    /// @dev event emitted when a citizen is paid a salary
+    event Paid(
+        address indexed citizen,
+        uint256 indexed amount,
+        address indexed employer,
+        uint256 currentTokens,
+        uint256 healthTokens,
+        uint256 unemploymentTokens,
+        uint256 retirementTokens
+    );
 
     /// @dev transfers ownership to owner_, sets _price and casts owner address to address payable as _sovereign
     /// @param owner_ The address becoming owner of the contract
@@ -115,18 +155,19 @@ contract Government is Ownable {
     }
 
     /// @dev private function for revocation of citizenship, sets citizen properties to 0 and transfers tokens to sovereign
-    /// @param addr address of the citizen who looses citizenship by death or denaturalization
-    function _cancelCitizen(address addr) private {
-        _citizens[addr].isAlive = false;
-        _citizens[addr].employer = address(0);
-        _citizens[addr].isWorking = false;
-        _citizens[addr].isSick = false;
-        _citizens[addr].retirementDate = 0;
-        _citizens[addr].nbOfCurrentAccountTokens = 0;
-        _citizens[addr].nbOfHealthInsuranceTokens = 0;
-        _citizens[addr].nbOfUnemploymentTokens = 0;
-        _citizens[addr].nbOfRetirementTokens = 0;
-        _token.operatorSend(addr, _sovereign, _token.balanceOf(addr), "", "");
+    /// @param formerCitizen address of the citizen who looses citizenship by death or denaturalization
+    function _cancelCitizen(address formerCitizen) private {
+        _citizens[formerCitizen].isAlive = false;
+        _citizens[formerCitizen].employer = address(0);
+        _citizens[formerCitizen].isWorking = false;
+        _citizens[formerCitizen].isSick = false;
+        _citizens[formerCitizen].retirementDate = 0;
+        _citizens[formerCitizen].currentTokens = 0;
+        _citizens[formerCitizen].healthTokens = 0;
+        _citizens[formerCitizen].unemploymentTokens = 0;
+        _citizens[formerCitizen].retirementTokens = 0;
+        _token.operatorSend(formerCitizen, _sovereign, _token.balanceOf(formerCitizen), "", "");
+        LostCitizenship(formerCitizen);
     }
 
     // Getter functions to view private variables
@@ -196,12 +237,14 @@ contract Government is Ownable {
             _cancelCitizen(concerned);
         } else if (option == HealthStatus.Healthy) {
             _citizens[concerned].isSick = false;
+            UpdatedHealth(concerned, false, _citizens[concerned].currentTokens, _citizens[concerned].healthTokens);
         } else if (option == HealthStatus.Sick) {
             _citizens[concerned].isSick = true;
-            _citizens[concerned].nbOfCurrentAccountTokens = _citizens[concerned].nbOfCurrentAccountTokens.add(
-                _citizens[concerned].nbOfHealthInsuranceTokens
+            _citizens[concerned].currentTokens = _citizens[concerned].currentTokens.add(
+                _citizens[concerned].healthTokens
             );
-            _citizens[concerned].nbOfHealthInsuranceTokens = 0;
+            _citizens[concerned].healthTokens = 0;
+            UpdatedHealth(concerned, true, _citizens[concerned].currentTokens, _citizens[concerned].healthTokens);
         } else revert("Invalid health status choice");
     }
 
@@ -216,13 +259,27 @@ contract Government is Ownable {
             require(_citizens[concerned].employer == msg.sender, "Government: not working for this company");
             _citizens[concerned].isWorking = false;
             _citizens[concerned].employer = address(0);
-            _citizens[concerned].nbOfCurrentAccountTokens = _citizens[concerned].nbOfCurrentAccountTokens.add(
-                _citizens[concerned].nbOfUnemploymentTokens
+            _citizens[concerned].currentTokens = _citizens[concerned].currentTokens.add(
+                _citizens[concerned].unemploymentTokens
             );
-            _citizens[concerned].nbOfUnemploymentTokens = 0;
+            _citizens[concerned].unemploymentTokens = 0;
+            UpdatedEmployment(
+                concerned,
+                address(0),
+                false,
+                _citizens[concerned].currentTokens,
+                _citizens[concerned].unemploymentTokens
+            );
         } else {
             _citizens[concerned].employer = msg.sender;
             _citizens[concerned].isWorking = true;
+            UpdatedEmployment(
+                concerned,
+                msg.sender,
+                true,
+                _citizens[concerned].currentTokens,
+                _citizens[concerned].unemploymentTokens
+            );
         }
     }
 
@@ -236,6 +293,7 @@ contract Government is Ownable {
             : block.timestamp;
         _citizens[msg.sender] = Citizen(true, address(0), false, false, retirementDate, AWARD_CITIZENSHIP, 0, 0, 0);
         _token.operatorSend(_sovereign, msg.sender, AWARD_CITIZENSHIP, "", "");
+        CreatedCitizen(msg.sender, true, address(0), false, false, retirementDate, AWARD_CITIZENSHIP, 0, 0, 0);
     }
 
     /// @dev asks for retirement can be called only by an alive citizen, transfers tokens from retirement insurance into current account
@@ -244,10 +302,11 @@ contract Government is Ownable {
         require(_citizens[msg.sender].retirementDate <= block.timestamp, "Government: retirement possible only at 67");
         _citizens[msg.sender].isWorking = false;
         _citizens[msg.sender].employer = address(0);
-        _citizens[msg.sender].nbOfCurrentAccountTokens = _citizens[msg.sender].nbOfCurrentAccountTokens.add(
-            _citizens[msg.sender].nbOfRetirementTokens
-        );
-        _citizens[msg.sender].nbOfRetirementTokens = 0;
+        uint256 _addedAmount = _citizens[msg.sender].unemploymentTokens.add(_citizens[msg.sender].retirementTokens);
+        _citizens[msg.sender].currentTokens = _citizens[msg.sender].currentTokens.add(_addedAmount);
+        _citizens[msg.sender].unemploymentTokens = 0;
+        _citizens[msg.sender].retirementTokens = 0;
+        Retired(msg.sender, address(0), false, _citizens[msg.sender].currentTokens, 0, 0);
     }
 
     /// @dev register a hospital, can be called only by the sovereign
@@ -255,6 +314,7 @@ contract Government is Ownable {
     function registerHospital(address hospitalAddress) public onlyOwner {
         require(_hospitals[hospitalAddress] == false, "Government: hospital is already registered");
         _hospitals[hospitalAddress] = true;
+        SetHospital(hospitalAddress, true);
     }
 
     /// @dev unregister a hospital, can be called only by the sovereign
@@ -262,6 +322,7 @@ contract Government is Ownable {
     function unregisterHospital(address hospitalAddress) public onlyOwner {
         require(_hospitals[hospitalAddress] == true, "Government: hospital is already unregistered");
         _hospitals[hospitalAddress] = false;
+        SetHospital(hospitalAddress, false);
     }
 
     /// @dev register a company, can be called only by the sovereign
@@ -269,6 +330,7 @@ contract Government is Ownable {
     function registerCompany(address companyAddress) public onlyOwner {
         require(_companies[companyAddress] == false, "Government: company is already registered");
         _companies[companyAddress] = true;
+        SetCompany(companyAddress, true);
     }
 
     /// @dev unregister a company, can be called only by the sovereign
@@ -276,6 +338,7 @@ contract Government is Ownable {
     function unregisterCompany(address companyAddress) public onlyOwner {
         require(_companies[companyAddress] == true, "Government: company is already unregistered");
         _companies[companyAddress] = false;
+        SetCompany(companyAddress, false);
     }
 
     /** @dev buy CTZ tokens, function payable can be called only by a company,
@@ -315,12 +378,19 @@ contract Government is Ownable {
         require(_citizens[employee].employer == msg.sender, "Government: not an employee of this company");
         require(_token.balanceOf(msg.sender) >= amount, "Government: company balance is less than the amount");
         uint256 _partSalary = amount.div(10);
-        _citizens[employee].nbOfHealthInsuranceTokens = _citizens[employee].nbOfHealthInsuranceTokens.add(_partSalary);
-        _citizens[employee].nbOfUnemploymentTokens = _citizens[employee].nbOfUnemploymentTokens.add(_partSalary);
-        _citizens[employee].nbOfRetirementTokens = _citizens[employee].nbOfRetirementTokens.add(_partSalary);
-        _citizens[employee].nbOfCurrentAccountTokens = _citizens[employee].nbOfCurrentAccountTokens.add(
-            amount.sub(_partSalary.mul(3))
-        );
+        _citizens[employee].healthTokens = _citizens[employee].healthTokens.add(_partSalary);
+        _citizens[employee].unemploymentTokens = _citizens[employee].unemploymentTokens.add(_partSalary);
+        _citizens[employee].retirementTokens = _citizens[employee].retirementTokens.add(_partSalary);
+        _citizens[employee].currentTokens = _citizens[employee].currentTokens.add(amount.sub(_partSalary.mul(3)));
         _token.operatorSend(msg.sender, employee, amount, "", "");
+        Paid(
+            employee,
+            amount,
+            msg.sender,
+            _citizens[employee].currentTokens,
+            _citizens[employee].healthTokens,
+            _citizens[employee].unemploymentTokens,
+            _citizens[employee].retirementTokens
+        );
     }
 }

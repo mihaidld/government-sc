@@ -11,7 +11,7 @@ import "./Government.sol";
 /// @notice Owner can mint and burn tokens
 /// @dev All function calls are currently implemented without side effects, the contract inherits OpenZeppelin contracts ERC777 and Ownable
 
-// contract Token deployed at 0x29ee059fA01A002dDd21A82B1beaABb62705b5Fb
+// contract Token deployed at 0x8A6B6DF1BA142F098F985B17CC45B62a258B2107
 
 /*
 TODO: add capped or pausable?
