@@ -251,6 +251,13 @@ describe('Government', function () {
         );
       });
 
+      it('reverts if trying to change health of not a citizen', async function () {
+        await expectRevert(
+          this.government.changeHealthStatus(person1, '0', { from: hospital }),
+          'Government: can not change health since not an alive citizen',
+        );
+      });
+
       it('reverts if changeHealthStatus is called with a health option other than 0,1,2', async function () {
         await expectRevert(
           this.government.changeHealthStatus(person2, '3', { from: hospital }),
@@ -291,7 +298,7 @@ describe('Government', function () {
 
       it('emits an event LostCitizenship(former Citizen address)', async function () {
         const truffleReceipt = await this.government.changeHealthStatus(person1, '0', { from: hospital });
-        expectEvent(truffleReceipt, 'LostCitizenship', { citizen: person1 });
+        expectEvent(truffleReceipt, 'LostCitizenship', { citizenAddress: person1 });
       });
     });
 
@@ -319,7 +326,7 @@ describe('Government', function () {
         const truffleReceipt = await this.government.changeHealthStatus(person1, '1', { from: hospital });
         const pers1 = await this.government.getCitizen(person1);
         expectEvent(truffleReceipt, 'UpdatedHealth', {
-          citizen: person1,
+          citizenAddress: person1,
           isSick: false,
           currentTokens: pers1.currentTokens,
           healthTokens: pers1.healthTokens,
@@ -365,7 +372,7 @@ describe('Government', function () {
         const truffleReceipt = await this.government.changeHealthStatus(person1, '2', { from: hospital });
         const pers1 = await this.government.getCitizen(person1);
         expectEvent(truffleReceipt, 'UpdatedHealth', {
-          citizen: person1,
+          citizenAddress: person1,
           isSick: true,
           currentTokens: pers1.currentTokens,
           healthTokens: pers1.healthTokens,
@@ -404,6 +411,13 @@ describe('Government', function () {
           'Government: not working for this company',
         );
       });
+
+      it('reverts if trying to change employment of not a citizen', async function () {
+        await expectRevert(
+          this.government.changeEmploymentStatus(person2, { from: company }),
+          'Government: can not change employment since not an alive citizen',
+        );
+      });
     });
 
     context('change to working', function () {
@@ -437,7 +451,7 @@ describe('Government', function () {
         const truffleReceipt = await this.government.changeEmploymentStatus(person1, { from: company });
         const pers1 = await this.government.getCitizen(person1);
         expectEvent(truffleReceipt, 'UpdatedEmployment', {
-          citizen: person1,
+          citizenAddress: person1,
           employer: company,
           isWorking: true,
           currentTokens: pers1.currentTokens,
@@ -494,7 +508,7 @@ describe('Government', function () {
         const unemploymentInsurance = new BN(pers1.unemploymentTokens);
         const truffleReceipt = await this.government.changeEmploymentStatus(person1, { from: company });
         expectEvent(truffleReceipt, 'UpdatedEmployment', {
-          citizen: person1,
+          citizenAddress: person1,
           employer: constants.ZERO_ADDRESS,
           isWorking: false,
           currentTokens: current.add(unemploymentInsurance),
@@ -594,7 +608,7 @@ describe('Government', function () {
         const _addedAmount = unemploymentInsurance.add(retirementInsurance);
         const truffleReceipt = await this.government.getRetired({ from: person2 });
         expectEvent(truffleReceipt, 'Retired', {
-          citizen: person2,
+          citizenAddress: person2,
           employer: constants.ZERO_ADDRESS,
           isWorking: false,
           currentTokens: current.add(_addedAmount),
@@ -685,7 +699,7 @@ describe('Government', function () {
       await this.government.changeHealthStatus(sentenced, '0', { from: hospital });
       await expectRevert(
         this.government.denaturalize(sentenced, { from: owner }),
-        'Government: impossible punishment: not an alive citizen',
+        'Government: impossible punishment since not an alive citizen',
       );
     });
 
@@ -705,7 +719,7 @@ describe('Government', function () {
 
     it('emits an event LostCitizenship(former Citizen address)', async function () {
       const truffleReceipt = await this.government.denaturalize(sentenced, { from: owner });
-      expectEvent(truffleReceipt, 'LostCitizenship', { citizen: sentenced });
+      expectEvent(truffleReceipt, 'LostCitizenship', { citizenAddress: sentenced });
     });
   });
 
@@ -891,7 +905,7 @@ describe('Government', function () {
         const _addedCurrent = NB_TOKENS.sub(_partSalary.mul(new BN('3')));
         const truffleReceipt = await this.government.paySalary(person1, NB_TOKENS, { from: company });
         expectEvent(truffleReceipt, 'Paid', {
-          citizen: person1,
+          citizenAddress: person1,
           amount: NB_TOKENS,
           employer: company,
           currentTokens: current.add(_addedCurrent),

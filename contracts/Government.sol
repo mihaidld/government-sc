@@ -14,8 +14,6 @@ import "./Token.sol";
  * contract inherits OpenZeppelin contract Ownable and uses SafeMath library
  */
 
-// contract Government deployed at 0x2F1faF0a5D80c4f8D1cB7a671C814247542cFFc5
-
 /* TODO: 
 - import and use Access Control from OZ to replace modifiers? 
 - Test : test events token transfers (BecomeCitizen, BuyToken etc.) 
@@ -69,7 +67,7 @@ contract Government is Ownable {
 
     /// @dev event emitted when a citizen is created
     event CreatedCitizen(
-        address indexed citizen,
+        address indexed citizenAddress,
         bool isAlive,
         address employer,
         bool isWorking,
@@ -82,14 +80,14 @@ contract Government is Ownable {
     );
 
     /// @dev event emitted when a citizen looses citizenship through denaturalization or death
-    event LostCitizenship(address indexed citizen);
+    event LostCitizenship(address indexed citizenAddress);
 
     /// @dev event emitted when a hospital updates a citizen's health status between sick and healthy
-    event UpdatedHealth(address indexed citizen, bool isSick, uint256 currentTokens, uint256 healthTokens);
+    event UpdatedHealth(address indexed citizenAddress, bool isSick, uint256 currentTokens, uint256 healthTokens);
 
     /// @dev event emitted when a company updates a citizen's employment status between working and unemployed
     event UpdatedEmployment(
-        address indexed citizen,
+        address indexed citizenAddress,
         address employer,
         bool isWorking,
         uint256 currentTokens,
@@ -98,7 +96,7 @@ contract Government is Ownable {
 
     /// @dev event emitted when a citizen retires
     event Retired(
-        address indexed citizen,
+        address indexed citizenAddress,
         address employer,
         bool isWorking,
         uint256 currentTokens,
@@ -114,7 +112,7 @@ contract Government is Ownable {
 
     /// @dev event emitted when a citizen is paid a salary
     event Paid(
-        address indexed citizen,
+        address indexed citizenAddress,
         uint256 indexed amount,
         address indexed employer,
         uint256 currentTokens,
@@ -222,7 +220,7 @@ contract Government is Ownable {
     function denaturalize(address sentenced) public onlyOwner {
         /// @dev addresses of sovereign and not an alive citizen cannot be denaturalized
         require(sentenced != _sovereign, "Government: sovereign cannot loose citizenship");
-        require(_citizens[sentenced].isAlive == true, "Government: impossible punishment: not an alive citizen");
+        require(_citizens[sentenced].isAlive == true, "Government: impossible punishment since not an alive citizen");
         _cancelCitizen(sentenced);
     }
 
@@ -233,6 +231,7 @@ contract Government is Ownable {
     /// @param concerned Address of the citizen with a health status changed
     /// @param option Option to change health status: 0 -> Died, 1 -> Healthy, 2 -> Sick, other -> Invalid health status choice
     function changeHealthStatus(address concerned, HealthStatus option) public onlyHospitals {
+        require(_citizens[concerned].isAlive == true, "Government: can not change health since not an alive citizen");
         if (option == HealthStatus.Died) {
             _cancelCitizen(concerned);
         } else if (option == HealthStatus.Healthy) {
@@ -254,6 +253,10 @@ contract Government is Ownable {
      */
     /// @param concerned Address of the citizen with an employment status changed
     function changeEmploymentStatus(address concerned) public onlyCompanies {
+        require(
+            _citizens[concerned].isAlive == true,
+            "Government: can not change employment since not an alive citizen"
+        );
         if (_citizens[concerned].isWorking == true) {
             /// @dev company A cannot change status of a citizen working for company B
             require(_citizens[concerned].employer == msg.sender, "Government: not working for this company");

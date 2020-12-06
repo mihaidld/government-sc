@@ -1,4 +1,4 @@
 # Les adresses des smarts contrats deployes sur Rinkeby testnet
 
-- contract `Government` deployed at _0x2F1faF0a5D80c4f8D1cB7a671C814247542cFFc5_
-- contract `Token` deployed at _0x8A6B6DF1BA142F098F985B17CC45B62a258B2107_
+- contract `Government` deployed at _0x850071d9eEb608F640b979De9145F522548cD286_
+- contract `Token` deployed at _0x29400caC1E28Ce813F74b05E25F3Fc240E3afA3c_
