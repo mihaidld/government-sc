@@ -8,9 +8,11 @@ import "./Government.sol";
 
 /// @author Mihai Doldur
 /// @title A contract for an ERC777 token
-/// @notice Owner can mint and burn tokens
-/// @dev All function calls are currently implemented without side effects, the contract inherits OpenZeppelin contracts ERC777 and Ownable
-
+/** @dev All function calls are currently implemented without side effects,
+ * the contract inherits OpenZeppelin contracts ERC777 and Ownable,
+ * the owner can mint and burn tokens
+ */
+ 
 /*
 TODO: add capped or pausable?
 use appAddress pnly once as parameter?

@@ -1,71 +1,64 @@
-# **TP CITIZEN**
+# Ethereum Smart Contracts in Solidity for DApp CITIZEN project
 
-Créer une suite de smart contracts qui géreront un Etat et ses citoyens :
+## Presentation
 
-- _CitizenERC20.sol_ gere le token;
-- _Government.sol_ gere les affaires d'Etat.
+DApp CITIZEN is a project to create a token economy using 2 smart contracts for managing a country and its citizens :
 
-## **le token `CITIZEN`**
+_Token.sol_ handles the token  
+_Government.sol_ handles State Affairs.
 
-Un token le `CITIZEN` (symbole `CTZ`, 18 decimales) servira de monnaie et de point de citoyenneté dans cet Etat.  
-100 `CITIZEN` sont automatiquement attribués à un particulier qui souhaite devenir citoyen.
-Lorsqu'un citoyen ne possède plus de `CITIZEN` (au moins une unite de CTZ) il ne peut plus voter.
-L'entité qui sera l'Etat, (l'adresse d'un smart contract), devra posséder 100% du `cap` de `CITIZEN`.
-L'État a 1 million de `CTZ` au deployement du contrat `CitizenERC20`, mais garde la possibilite de `burn` et `mint` des `CTZ` dans l'avenir (sans que le `totalSupply` of `CTZ` ne depasse pas le cap de 1 million).
+- contracts inherit from Open Zeppelin's `ERC777` and `Ownable` already tested contracts and use `SafeMath` library
+- testing done using `Mocha`test framework, `Chai` assertion library and Open Zeppelin's `Test Environment` and `Test Helpers`
+- deployment via `Truffle` on Rinkeby Testnet
+- comments using `NatSpec` format who generate documentation via `solidity-docgen`
 
-## **Entreprises**
+## Install
 
-Les entreprises peuvent verser des salaires en `CITIZEN` aux salariés citoyens.  
-Ces entreprises devront s'enregistrer auprès de l'Etat, et cet enregistrement devra être validé par le conseil des sages.
-Les entreprise peuvent acheter des `CTZ` de l'Etat.
+### Install dependencies:
 
-## **Administrateurs: conseil des sages**
+```zsh
+% yarn install
+```
 
-Des administrateurs, qui forment le conseil des sages, pourront participer aux tâches de gouvernance et d'administration de l'Etat pour cela ils devront prouver qu'ils possedent plus de 100 `CITIZEN`.
-Ce sera la garantie qu'ils feront correctement leur travail d'administrateur.
-Les administrateurs votent pour effectuer les tâches d'administration comme utiliser les fonds des impôts récoltés, valider l'enregistrement d'une entreprise ou décider de donner des peines aux citoyens.  
-Une mauvaise gestion consiste en un `crime contre la nation`.  
-Les administrateurs sont élus par les citoyens. L'élection d'un administrateur dure 1 semaine.  
-Ils sont élus pour une durée de 8 semaines. Pour assurer la continuite du service la periode des elections a lieu pendant la derniere semaine du mandat des administrateurs actuels.
-Les administrateurs sont des citoyens qui peuvent effectuer des tâches d'administration.
+### Add environment variables:
 
-## **Peines**
+Add _.env_ file with 2 variables `MNEMONIC` and `ENDPOINT_ID` from `Infura`
 
-Dans cet Etat les peines consistent à se faire retirer du `CITIZEN`.
-4 types de peines:
+## Details of the project
 
-- légère: retire 5 `CITIZEN` au citoyen qui passe en jugement.
-- lourde: retire 50 `CITIZEN` au citoyen qui passe en jugement.
-- grave: retire 100 `CITIZEN` au citoyen qui passe en jugement.
-- crime contre la nation: retire tous les `CITIZEN` du citoyen (compte courant, retraite, assurance maladie etc) et il est banni pendant 10 ans. Ses fonds sont ensuite reversés dans la caisse d'impôt commune.
+### **token `CITIZEN`**
 
-## **Les citoyens**
+A token called `CITIZEN` (symbol `CTZ`, 18 decimals) serves as national currency and citizenship point inside this country.  
+100 `CITIZEN` are automatically awarded to any individual who wishes to become a citizen.  
+An entity called `sovereign` is the owner of the state, has the right to register and unregister companies and hospitals, denaturalize citizens and is minted, during token contract deployment, 100% of the supply of `CITIZEN` (1 million `CTZ`). The owner retains the right to `burn` or `mint` tokens `CTZ` in the future in order to regulate the economy.
 
-Les citoyens sont identifiés par leur adresse Ethereum.
-Il y a différents attributs qui définissent un citoyen (malade, chômage, banni etc.).  
-Un citoyen peut se faire bannir pendant 10 ans.
+### **Companies**
 
-## **Impôts**
+To function a company must be registered by the sovereign using its Ethereum address. It can then buy `CTZ` from the sovereign.  
+A company can recruit employees from the registered citizens, pay them salaries in `CITIZEN` tokens and dismiss them.
 
-Lorsqu'un citoyen perçoit des revenus, 10% sont automatiquement envoyés dans une caisse commune à tous les citoyens (l'adresse de l'Etat).
-A tout moment les citoyens peuvent consulter combien la caisse contient.  
-L'utilisation des fonds de cette caisse ne peut être effectué que par les sages.
+### **Hospitals**
 
-## **Chômage**
+To function a hospital must be registered by the sovereign using its Ethereum address.  
+A hospital can change the health status of a registered citizens between healthy and sick, and also can declare dead a citizen.
 
-Lorsqu'un citoyen perçoit des revenus, 10 % sont automatiquement envoyés dans une caisse d'allocation chômage. Cette somme est bloquée sur son compte. Il ne pourra en bénéficier que si il est au chômage.
-Le statut de chômeur ne pourra être validé que par les sages.
+### **The citizens**
 
-## **Assurance maladie**
+The citizens are identified by their Ethereum address and can have different `properties`:
 
-Lorsqu'un citoyen perçoit des revenus, 10% sont automatiquement envoyés dans sa caisse d'assurance maladie. Cette somme est bloquée sur son compte. Il ne pourra en bénéficier que si il est malade.
-Le statut de congé maladie ne pourra être validé que par les sages.
+- alive / dead
+- healthy / sick
+- working / unemployed
+- an employer
+- a date when it's possible to ask for retirement etc.
 
-## **Retraite**
+A citizen has also a balance of `CTZ` spread between his `current account`, `unemployment insurance`, `health insurance` and `retirement insurance`. Only the current account is at his disposal.
 
-Lorsqu'un citoyen perçoit des revenus en `CITIZEN`, 10% sont automatiquement mis en dépôt pour sa retraite. Cette somme est bloquée sur son compte. Il ne pourra retirer ces fonds qu'a ses 67 ans (on calcule 67 ans en semaines).
+**Life events :**
 
-## **Décès**
-
-Lorsqu'un citoyen décède, ses fonds sont versés dans la caisse d'impôts commune (l'adresse de l'Etat).
-Ce transfer de fonds ne peut être effectué que par les sages.
+- When becoming citizen, he is awarded 100 `CTZ` in his current account.
+- When receiving a salary from his employer 10% of the salary go to his unemployment insurance, 10% to his health insurance, 10% to his retirement insurance and the remaining 70% to his current account.
+- When being dismissed by the employer all unemployment insurance tokens are transfered to his current account.
+- When being declared sick by a hospital all health insurance tokens are transfered to his current account.
+- When requesting for retirement (if has reached retirement age) all unemployment insurance and retirement insurance tokens are transfered to his current account.
+- When being declared dead by a hospital all his tokens are given back to the sovereign.
