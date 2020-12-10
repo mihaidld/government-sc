@@ -14,9 +14,6 @@ const {
 } = require('@openzeppelin/test-helpers');
 const { expect } = require('chai');
 
-/* TODO: update getRetired for enployment
-Events */
-
 const Government = contract.fromArtifact('Government');
 const Token = contract.fromArtifact('Token');
 

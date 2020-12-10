@@ -2,7 +2,7 @@
 
 ## Presentation
 
-DApp CITIZEN is a project to create a token economy using 2 smart contracts for managing a country and its citizens :
+DApp CITIZEN is a project to create a token economy and manage a fictional country and its citizens by deploying smart contracts on Ethereum blockchain written in Solidity :
 
 _Token.sol_ handles the token  
 _Government.sol_ handles State Affairs.
