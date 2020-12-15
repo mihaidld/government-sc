@@ -8,18 +8,12 @@ import "@openzeppelin/contracts/math/SafeMath.sol";
 import "./Token.sol";
 
 /// @author Mihai Doldur
-/// @title A contract for a country with a token economy
-/// @notice You can register as a citizen, company or hospital of the contract.
-/** @dev All function calls are currently implemented without side effects. The
- * contract inherits OpenZeppelin contract Ownable and uses SafeMath library
+/// @title A contract to manage a country and its citizens with a token economy
+/// @notice You can register as a citizen, but companies or hospitals are registered by the owner of the contract.
+/** @dev All function calls are currently implemented without side effects.
+ * The contract inherits OpenZeppelin contract Ownable and uses SafeMath library.
  */
 
-/* TODO: 
-- import and use Access Control from OZ to replace modifiers? 
-- Test : test events token transfers (BecomeCitizen, BuyToken etc.) 
-- check NatSpec comments
-- module for company?
-*/
 contract Government is Ownable {
     using SafeMath for uint256;
 
@@ -34,20 +28,20 @@ contract Government is Ownable {
     /// @dev price of 1 full CTZ (10^18 units of token) in wei;
     uint256 private _price;
 
-    /// @dev struct Citizen
+    /// @dev citizen with multiple properties
     struct Citizen {
-        bool isAlive; //true, after death false (the sovereign gets his balance)
-        address employer; //company employing the citizen
-        bool isWorking; //set by a company
-        bool isSick; //set by a hospital
-        uint256 retirementDate; //set when becoming citizen based on age
-        uint256 currentTokens; //100 full tokens (100 * 10**18 at registration), can be increased by salaries
-        uint256 healthTokens; //10% from each salary, acces to it when hospital declares citizen sick
-        uint256 unemploymentTokens; //10% from each salary, acces to it when company declares citizen unemployed
-        uint256 retirementTokens; //10% from each salary, acces to it at age 67
+        bool isAlive; //false by default, becomes true when new citizen, after death false
+        address employer; //address 0 by default, company employing the citizen
+        bool isWorking; //false by default, set by a company
+        bool isSick; //false by default, set by a hospital
+        uint256 retirementDate; //0 by default, set when becoming citizen based on age
+        uint256 currentTokens; //0 by default, 100 CTZ awarded to new citizen, increased by salaries
+        uint256 healthTokens; //0 by default, 10% from each salary, access to it when hospital declares citizen sick
+        uint256 unemploymentTokens; //0 by default, 10% from each salary, access to it when company declares citizen unemployed or gets retired
+        uint256 retirementTokens; //0 by default, 10% from each salary, access to it at age 67
     }
 
-    /// @dev mapping from an address to a Citizen
+    /// @dev mapping from an address to a citizen
     mapping(address => Citizen) private _citizens;
 
     /// @dev mapping from an address to boolean to check if registered hospital
@@ -65,6 +59,7 @@ contract Government is Ownable {
     /// @dev health status options using enum type: 0 -> HealthStatus.Died, 1 -> HealthStatus.Healthy, 2 -> HealthStatus.Sick
     enum HealthStatus {Died, Healthy, Sick}
 
+    //events
     /// @dev event emitted when a citizen is created
     event CreatedCitizen(
         address indexed citizenAddress,
@@ -121,14 +116,12 @@ contract Government is Ownable {
         uint256 retirementTokens
     );
 
-    /// @dev transfers ownership to owner_, sets _price and casts owner address to address payable as _sovereign
+    /// @dev transfers ownership to owner_ by calling an Ownable function, sets _price and casts owner address to address payable as _sovereign
     /// @param owner_ The address becoming owner of the contract
     /// @param priceFull Price of a 1 full CTZ (10^18 tokens) in wei : 10**16 or 0.01 ether or 10000000000000000
     constructor(address owner_, uint256 priceFull) public {
         transferOwnership(owner_);
         _price = priceFull;
-        //_ownerAddress = payable(owner_);
-        //_ownerAddress = address(uint160(owner_));
         _sovereign = payable(owner());
     }
 
@@ -140,15 +133,15 @@ contract Government is Ownable {
         _;
     }
 
-    /// @dev modifier to check if msg.sender is an alive citizen
-    modifier onlyAliveCitizens() {
-        require(_citizens[msg.sender].isAlive == true, "Government: only alive citizens can perform this action");
-        _;
-    }
-
     /// @dev modifier to check if company registered
     modifier onlyCompanies() {
         require(_companies[msg.sender] == true, "Government: only a company can perform this action");
+        _;
+    }
+
+    /// @dev modifier to check if msg.sender is an alive citizen
+    modifier onlyAliveCitizens() {
+        require(_citizens[msg.sender].isAlive == true, "Government: only alive citizens can perform this action");
         _;
     }
 
@@ -215,7 +208,7 @@ contract Government is Ownable {
         _token = Token(msg.sender);
     }
 
-    /// @dev denaturalize a citizen to be called only by the sovereign, calls _cancelCitizen function
+    /// @dev denaturalizes a citizen, to be called only by the sovereign, calls _cancelCitizen function
     /// @param sentenced Address of the citizen to be denaturalized
     function denaturalize(address sentenced) public onlyOwner {
         /// @dev addresses of sovereign and not an alive citizen cannot be denaturalized
@@ -224,9 +217,9 @@ contract Government is Ownable {
         _cancelCitizen(sentenced);
     }
 
-    /** @dev change a citizen's health status to be called only by a hospital,
-     *   in case of dying calls _cancelCitizen function, if becoming sick it
-     *  transfers all tokens from health insurance into current account
+    /** @dev changes an alive citizen's health status, to be called only by a hospital,
+     *   in case of death calls _cancelCitizen function, if change to sick it
+     *  transfers all tokens from citizen's health insurance into the current account
      */
     /// @param concerned Address of the citizen with a health status changed
     /// @param option Option to change health status: 0 -> Died, 1 -> Healthy, 2 -> Sick, other -> Invalid health status choice
@@ -247,9 +240,9 @@ contract Government is Ownable {
         } else revert("Invalid health status choice");
     }
 
-    /** @dev change a citizen's employment status to be called only by a
-     * company, toggles between working and unemployed status, if becoming unemployed it
-     * transfers all tokens from retirement insurance into current account
+    /** @dev changes an alive citizen's employment status, to be called only by a
+     * company, toggles between working (during recruitment) and unemployed status (during dismissal),
+     * if becoming unemployed it transfers all tokens from citizen's retirement insurance into the current account
      */
     /// @param concerned Address of the citizen with an employment status changed
     function changeEmploymentStatus(address concerned) public onlyCompanies {
@@ -289,19 +282,18 @@ contract Government is Ownable {
     /// @dev creates a citizen (everybody can become a citizen by entering the age) and transfers award of 100 CTZ from sovereign account
     /// @param age Age of the new citizen, used to calculate retirement moment
     function becomeCitizen(uint256 age) public {
-        /// @dev each new citizen has a retirementDate, so if the value of the property is different than 0, it means the msg.sender is already a citizen
+        /// @dev each new citizen has a retirementDate, so if the value of this property is different than 0, it means the msg.sender is already a citizen
         require(_citizens[msg.sender].retirementDate == 0, "Government: citizens can not ask again for citizenship");
-        uint256 retirementDate = RETIREMENT_AGE >= age
-            ? block.timestamp.add((RETIREMENT_AGE.sub(age)).mul(52 weeks))
-            : block.timestamp;
+        uint256 retirementDate =
+            RETIREMENT_AGE >= age ? block.timestamp.add((RETIREMENT_AGE.sub(age)).mul(52 weeks)) : block.timestamp;
         _citizens[msg.sender] = Citizen(true, address(0), false, false, retirementDate, AWARD_CITIZENSHIP, 0, 0, 0);
         _token.operatorSend(_sovereign, msg.sender, AWARD_CITIZENSHIP, "", "");
         CreatedCitizen(msg.sender, true, address(0), false, false, retirementDate, AWARD_CITIZENSHIP, 0, 0, 0);
     }
 
-    /// @dev asks for retirement can be called only by an alive citizen, transfers tokens from retirement insurance into current account
+    /// @dev retires citizen, can be called only by an alive citizen, transfers tokens from retirement insurance into current account
     function getRetired() public onlyAliveCitizens {
-        /// @dev can be called only when citizen's age is above official retirement age
+        /// @dev can be called only when citizen has reached official retirement age
         require(_citizens[msg.sender].retirementDate <= block.timestamp, "Government: retirement possible only at 67");
         _citizens[msg.sender].isWorking = false;
         _citizens[msg.sender].employer = address(0);
@@ -312,7 +304,7 @@ contract Government is Ownable {
         Retired(msg.sender, address(0), false, _citizens[msg.sender].currentTokens, 0, 0);
     }
 
-    /// @dev register a hospital, can be called only by the sovereign
+    /// @dev registers a hospital, can be called only by the sovereign
     /// @param hospitalAddress Address of the hospital to be registered
     function registerHospital(address hospitalAddress) public onlyOwner {
         require(_hospitals[hospitalAddress] == false, "Government: hospital is already registered");
@@ -320,7 +312,7 @@ contract Government is Ownable {
         SetHospital(hospitalAddress, true);
     }
 
-    /// @dev unregister a hospital, can be called only by the sovereign
+    /// @dev unregisters a hospital, can be called only by the sovereign
     /// @param hospitalAddress Address of the hospital to be unregistered
     function unregisterHospital(address hospitalAddress) public onlyOwner {
         require(_hospitals[hospitalAddress] == true, "Government: hospital is already unregistered");
@@ -328,7 +320,7 @@ contract Government is Ownable {
         SetHospital(hospitalAddress, false);
     }
 
-    /// @dev register a company, can be called only by the sovereign
+    /// @dev registers a company, can be called only by the sovereign
     /// @param companyAddress Address of the company to be registered
     function registerCompany(address companyAddress) public onlyOwner {
         require(_companies[companyAddress] == false, "Government: company is already registered");
@@ -336,7 +328,7 @@ contract Government is Ownable {
         SetCompany(companyAddress, true);
     }
 
-    /// @dev unregister a company, can be called only by the sovereign
+    /// @dev unregisters a company, can be called only by the sovereign
     /// @param companyAddress Address of the company to be unregistered
     function unregisterCompany(address companyAddress) public onlyOwner {
         require(_companies[companyAddress] == true, "Government: company is already unregistered");
@@ -344,7 +336,7 @@ contract Government is Ownable {
         SetCompany(companyAddress, false);
     }
 
-    /** @dev buy CTZ tokens, function payable can be called only by a company,
+    /** @dev buys CTZ tokens, function payable can be called only by a company,
      * transfers tokens to company, transfers ether to sovereign,
      * if value is superior to cost, than the difference is sent to company
      */
@@ -378,7 +370,9 @@ contract Government is Ownable {
     /// @param amount Salary paid by company
 
     function paySalary(address employee, uint256 amount) public onlyCompanies {
+        /// @dev checks if beneficiary is working for this company
         require(_citizens[employee].employer == msg.sender, "Government: not an employee of this company");
+        /// @dev checks if company has enough CTZ to pay salary
         require(_token.balanceOf(msg.sender) >= amount, "Government: company balance is less than the amount");
         uint256 _partSalary = amount.div(10);
         _citizens[employee].healthTokens = _citizens[employee].healthTokens.add(_partSalary);

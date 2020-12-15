@@ -2,8 +2,8 @@
 
 
 
-All function calls are currently implemented without side effects. The
-contract inherits OpenZeppelin contract Ownable and uses SafeMath library
+All function calls are currently implemented without side effects.
+The contract inherits OpenZeppelin contract Ownable and uses SafeMath library.
 
 ### `onlyHospitals()`
 
@@ -11,24 +11,24 @@ contract inherits OpenZeppelin contract Ownable and uses SafeMath library
 
 modifier to check if msg.sender is a hospital
 
-### `onlyAliveCitizens()`
-
-
-
-modifier to check if msg.sender is an alive citizen
-
 ### `onlyCompanies()`
 
 
 
 modifier to check if company registered
 
+### `onlyAliveCitizens()`
+
+
+
+modifier to check if msg.sender is an alive citizen
+
 
 ### `constructor(address owner_, uint256 priceFull)` (public)
 
 
 
-transfers ownership to owner_, sets _price and casts owner address to address payable as _sovereign
+transfers ownership to owner_ by calling an Ownable function, sets _price and casts owner address to address payable as _sovereign
 
 
 ### `getCitizen(address citizenAddress) → struct Government.Citizen` (public)
@@ -83,7 +83,7 @@ sets _token during Token contract construction with Token address and can be cal
 
 
 
-denaturalize a citizen to be called only by the sovereign, calls _cancelCitizen function
+denaturalizes a citizen, to be called only by the sovereign, calls _cancelCitizen function
 
 
 ### `changeHealthStatus(address concerned, enum Government.HealthStatus option)` (public)
@@ -109,34 +109,34 @@ creates a citizen (everybody can become a citizen by entering the age) and trans
 
 
 
-asks for retirement can be called only by an alive citizen, transfers tokens from retirement insurance into current account
+retires citizen, can be called only by an alive citizen, transfers tokens from retirement insurance into current account
 
 ### `registerHospital(address hospitalAddress)` (public)
 
 
 
-register a hospital, can be called only by the sovereign
+registers a hospital, can be called only by the sovereign
 
 
 ### `unregisterHospital(address hospitalAddress)` (public)
 
 
 
-unregister a hospital, can be called only by the sovereign
+unregisters a hospital, can be called only by the sovereign
 
 
 ### `registerCompany(address companyAddress)` (public)
 
 
 
-register a company, can be called only by the sovereign
+registers a company, can be called only by the sovereign
 
 
 ### `unregisterCompany(address companyAddress)` (public)
 
 
 
-unregister a company, can be called only by the sovereign
+unregisters a company, can be called only by the sovereign
 
 
 ### `buyTokens(uint256 nbTokens) → bool` (public)

@@ -12,16 +12,10 @@ import "./Government.sol";
  * the contract inherits OpenZeppelin contracts ERC777 and Ownable,
  * the owner can mint and burn tokens
  */
- 
-/*
-TODO: add capped or pausable?
-use appAddress pnly once as parameter?
- */
 
 contract Token is ERC777, Ownable {
     // Variables of storage
-
-    /// @dev government contract using the tokens
+    /// @dev government contract which is the default operator
     Government private _government;
 
     /** @dev transfers ownership to _owner, sets address of Government token
@@ -31,8 +25,8 @@ contract Token is ERC777, Ownable {
      */
     /// @param owner_ The address becoming owner of the contract
     /// @param initialSupply Amount of tokens minted to the owner
-    /// @param appAddress Address of the Goverment contract using the tokens
-    /// @param defaultOperators Array with 1 element, the address of the Goverment contract using the tokens
+    /// @param appAddress Address of the Goverment contract operating the tokens
+    /// @param defaultOperators Array with 1 element, the address of the Goverment contract
     constructor(
         address owner_,
         uint256 initialSupply,
